@@ -3,11 +3,7 @@
     "name": "Benutzungsstunden",
     "type": 3,
     "vendor": "",
-    "aliases": [
-        "Benutzungsstunden",
-        "Vollbenutzungsstunden",
-        "Volllaststunden"
-    ],
+    "aliases": [],
     "parentRequirements": [],
     "childRequirements": [],
     "implemented": [],

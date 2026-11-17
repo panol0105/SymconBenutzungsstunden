@@ -38,6 +38,10 @@
   .pill { display: inline-flex; align-items: center; gap: .35em; font-size: .88em; font-weight: 500; padding: .35em .8em; border-radius: 999px; background: rgba(26,159,69,.10); color: var(--ok); white-space: nowrap; }
   .pill.warn { background: rgba(224,123,0,.10); color: var(--warn); }
   .pill.err { background: rgba(217,58,58,.10); color: var(--err); }
+  .pill.busy { background: var(--accent-soft); color: var(--accent); }
+  .pill.busy::before { animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .busy-txt { color: var(--accent); font-size: .95em; }
   .pill::before { content: ""; width: .45em; height: .45em; border-radius: 50%; background: currentColor; }
 
   .toolbar { display: flex; align-items: center; gap: .6em; padding: 0 1.4em .9em; flex-wrap: wrap; }
@@ -191,9 +195,10 @@
     yb.querySelectorAll('button').forEach(b => b.onclick = () => { selectedYear = +b.dataset.y; render(); });
 
     const errors = state.sources.filter(s => s.error).length;
-    document.getElementById('status').innerHTML = errors
-      ? `<span class="pill err">${errors} Messstelle${errors > 1 ? 'n' : ''} prüfen</span>`
-      : `<span class="pill">Alle Werte OK</span>`;
+    document.getElementById('status').innerHTML =
+      (state.pending > 0 ? `<span class="pill busy">Berechnung läuft · ${state.pending} Monate offen</span> ` : '') +
+      (errors ? `<span class="pill err">${errors} Messstelle${errors > 1 ? 'n' : ''} prüfen</span>`
+              : (state.pending > 0 ? '' : `<span class="pill">Alle Werte OK</span>`));
     document.getElementById('stand').textContent = 'Stand ' + fmtDate(state.updated, true);
     document.getElementById('sub').textContent =
       state.sources.map(s => s.name).join(' · ') + ' · ' + selectedYear;
@@ -217,6 +222,9 @@
     const rows = state.sources.map((s, i) => {
       const y = yearRow(s, selectedYear);
       const name = `<span class="name-cell"><span class="sq" style="background:${s.color}"></span>${esc(s.name)}</span>`;
+      if (y && y.busy) {
+        return `<tr data-s="${i}"><td>${name}</td><td colspan="5" class="busy-txt">wird berechnet …</td><td class="col-opt"></td></tr>`;
+      }
       if (s.error || !y || y.energy <= 0) {
         return `<tr data-s="${i}"><td>${name}</td><td colspan="5" style="color:var(--ink-3)">${s.error ? '⚠ ' + esc(s.error) : 'keine Daten'}</td><td class="col-opt"></td></tr>`;
       }
@@ -242,7 +250,7 @@
   }
 
   function sparkline(s) {
-    const pts = state.years.map(yr => { const r = yearRow(s, yr); return r && r.final !== false ? r.hours : (r && r.forecastHours) || (r && r.hours) || 0; });
+    const pts = state.years.map(yr => { const r = yearRow(s, yr); if (r && r.busy) return 0; return r && r.final !== false ? r.hours : (r && r.forecastHours) || (r && r.hours) || 0; });
     const W = 80, H = 22, max = Math.max(1, ...pts), min = 0, span = max;
     const xy = pts.map((v, i) => [pts.length > 1 ? i * W / (pts.length - 1) : W / 2, v > 0 ? H - 3 - (v - min) / span * (H - 6) : null]);
     const d = xy.filter(p => p[1] !== null).map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
@@ -257,6 +265,10 @@
     if (s.error) return `<section class="card" data-card="${idx}">${head}<div class="err"><span aria-hidden="true">⚠</span>${esc(s.error)}</div></section>`;
 
     const y = yearRow(s, selectedYear);
+    if (y && y.busy) {
+      return `<section class="card" data-card="${idx}">${head}<div class="hero"><span class="val" style="color:var(--ink-3)">…</span></div>
+              <div class="busy-txt">${selectedYear} wird aus dem Archiv berechnet. Das kann beim ersten Mal einige Minuten dauern.</div>${chartBox(idx)}</section>`;
+    }
     if (!y || y.energy <= 0) {
       return `<section class="card" data-card="${idx}">${head}<div class="hero"><span class="val" style="color:var(--ink-3)">–</span></div>
               <div class="fc">Keine Archivdaten für ${selectedYear}.</div>${chartBox(idx)}</section>`;
@@ -302,7 +314,7 @@
 
   // Ein Balken je Jahr: gewähltes Jahr in Akzentfarbe, übrige dezent; Hochrechnung gestrichelt
   function chartSvg(s, idx, W) {
-    const rows = state.years.map(yr => yearRow(s, yr) || { year: yr, hours: 0, energy: 0 });
+    const rows = state.years.map(yr => { const r = yearRow(s, yr); return r && !r.busy ? r : { year: yr, hours: 0, energy: 0, busy: r && r.busy }; });
     const H = 92, top = 16, base = 72;
     const max = Math.max(1, ...rows.map(r => Math.max(r.hours, (state.showForecast && r.forecastHours) || 0)));
     const step = W / rows.length, bw = Math.min(34, step * 0.56);
@@ -343,6 +355,7 @@
     const yr = +el.dataset.y;
     const r = yearRow(s, yr);
     const html = () => {
+      if (r && r.busy) return `${yr}<br>wird berechnet …`;
       if (!r || r.energy <= 0) return `${yr}<br>keine Daten`;
       let t = `${yr}${r.final ? '' : ' (bisher)'}<br><b>${nf0.format(r.hours)} h/a</b> · ${txt(energyParts(r.energy))} · ${txt(powerParts(r.peak))}`;
       if (!r.final && state.showForecast && r.forecastHours) t += `<br>Hochrechnung ≈ ${nf0.format(r.forecastHours)} h/a`;

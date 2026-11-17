@@ -12,13 +12,15 @@ declare(strict_types=1);
  *   1 = Maximum einer geloggten Leistungsvariable
  *   2 = feste Nennleistung (z. B. Kesselleistung, Anschlussleistung)
  *
- * Abgeschlossene Jahre werden zwischengespeichert, nur das laufende Jahr wird zyklisch neu berechnet.
+ * Abgeschlossene Monate werden zwischengespeichert. Die Erstberechnung läuft portionsweise
+ * (max. TIME_BUDGET Sekunden je Durchlauf), damit keine Skript-Zeitüberschreitung auftritt.
  */
 class Benutzungsstunden extends IPSModule
 {
     private const ARCHIVE_GUID = '{43192F0B-135B-4CE7-A0A7-1475603F3060}';
     private const PROFILE = 'BNS.Hours';
     private const MAX_SOURCES = 50;
+    private const TIME_BUDGET = 8.0;   // Sekunden Rechenzeit je Durchlauf
 
     // Aggregationsstufen AC_GetAggregatedValues
     private const AGG_HOUR = 0;
@@ -34,7 +36,6 @@ class Benutzungsstunden extends IPSModule
         $this->RegisterPropertyString('Sources', '[]');
         $this->RegisterPropertyInteger('Years', 5);
         $this->RegisterPropertyInteger('UpdateInterval', 60);
-        $this->RegisterPropertyInteger('Theme', 0);
         $this->RegisterPropertyBoolean('ShowForecast', true);
 
         $this->RegisterAttributeString('Cache', '{}');
@@ -76,17 +77,17 @@ class Benutzungsstunden extends IPSModule
             return;
         }
 
-        $this->SetTimerInterval('Update', max(0, $this->ReadPropertyInteger('UpdateInterval')) * 60 * 1000);
-
+        // Status sofort setzen; die (ggf. lange) Berechnung läuft danach portionsweise über den Timer
+        $this->SetStatus(102);
         if (IPS_GetKernelRunlevel() === KR_READY) {
-            $this->Update();
+            $this->SetTimerInterval('Update', 1000);
         }
     }
 
     public function MessageSink($TimeStamp, $SenderID, $Message, $Data)
     {
-        if ($Message === IPS_KERNELMESSAGE && $Data[0] === KR_READY) {
-            $this->Update();
+        if ($Message === IPS_KERNELMESSAGE && $Data[0] === KR_READY && count($this->getSources()) > 0) {
+            $this->SetTimerInterval('Update', 1000);
         }
     }
 
@@ -111,20 +112,36 @@ class Benutzungsstunden extends IPSModule
         return $html . $initial;
     }
 
-    /** Löscht den Cache und berechnet alle Jahre neu. */
+    /** Löscht den Cache und berechnet alle Jahre neu (portionsweise im Hintergrund). */
     public function RecalculateAll()
     {
         $this->WriteAttributeString('Cache', '{}');
         $this->Update();
     }
 
-    /** Berechnet alle Kennzahlen und aktualisiert Variablen + Kachel. */
+    /**
+     * Berechnet alle Kennzahlen und aktualisiert Variablen + Kachel.
+     * Pro Aufruf wird höchstens TIME_BUDGET Sekunden gerechnet. Abgeschlossene Monate werden
+     * gespeichert; ist noch etwas offen, startet der Timer den nächsten Durchlauf nach 2 s.
+     */
     public function Update()
     {
-        @set_time_limit(600);
+        $sem = 'BNS_Update_' . $this->InstanceID;
+        if (!IPS_SemaphoreEnter($sem, 0)) {
+            return; // läuft bereits
+        }
+        try {
+            $this->doUpdate();
+        } finally {
+            IPS_SemaphoreLeave($sem);
+        }
+    }
 
+    private function doUpdate(): void
+    {
         $sources = $this->getSources();
         if (count($sources) === 0) {
+            $this->SetTimerInterval('Update', 0);
             $this->SetStatus(104);
             return;
         }
@@ -135,6 +152,9 @@ class Benutzungsstunden extends IPSModule
             return;
         }
         $archiveID = $archiveIDs[0];
+
+        $deadline = microtime(true) + self::TIME_BUDGET;
+        $pending = 0;
 
         $cache = json_decode($this->ReadAttributeString('Cache'), true) ?: [];
         $newCache = [];
@@ -147,44 +167,50 @@ class Benutzungsstunden extends IPSModule
         foreach ($sources as $i => $src) {
             $key = $this->sourceKey($src);
             $entry = [
-                'name'  => $src['Name'],
-                'color' => $this->colorFor($src, $i),
-                'mode'  => (int) $src['PeakMode'],
+                'name'   => $src['Name'],
+                'color'  => $this->colorFor($src, $i),
+                'mode'   => (int) $src['PeakMode'],
                 'meters' => count($src['Meters']),
-                'error' => '',
-                'years' => []
+                'error'  => '',
+                'years'  => []
             ];
 
             $error = $this->validateSource($archiveID, $src);
             if ($error !== '') {
                 $entry['error'] = $error;
                 $this->SendDebug($src['Name'], $error, 0);
-                $this->LogMessage($this->Translate('Benutzungsstunden') . ' – ' . $src['Name'] . ': ' . $error, KL_WARNING);
+                $this->LogMessage('Benutzungsstunden – ' . $src['Name'] . ': ' . $error, KL_WARNING);
                 $hasError = true;
                 $resultSources[] = $entry;
                 continue;
             }
 
+            $months = is_array($cache[$key] ?? null) ? $cache[$key] : [];
+            $byYear = [];
+            // laufendes Jahr zuerst, dann rückwärts
+            foreach (array_reverse($years) as $year) {
+                $byYear[$year] = $this->calculateYear($archiveID, $src, $year, $months, $deadline, $pending);
+            }
+            // nur Monate im gewählten Zeitraum behalten
+            $first = sprintf('%04d-01', $years[0]);
+            $newCache[$key] = array_filter($months, function ($k) use ($first) {
+                return strcmp((string) $k, $first) >= 0;
+            }, ARRAY_FILTER_USE_KEY);
+
             foreach ($years as $year) {
-                $cached = $cache[$key][(string) $year] ?? null;
-                if ($year < $currentYear && is_array($cached) && !empty($cached['final'])) {
-                    $data = $cached;
-                } else {
-                    $data = $this->calculateYear($archiveID, $src, $year);
+                $data = $byYear[$year];
+                if (!empty($data['busy'])) {
+                    $entry['years'][] = ['year' => $year, 'busy' => true];
+                    continue;
                 }
-                $newCache[$key][(string) $year] = $data;
                 if ($data['energy'] > 0 || $year === $currentYear) {
                     $entry['years'][] = array_merge(['year' => $year], $data);
                 }
-            }
-
-            // Variablen schreiben
-            foreach ($entry['years'] as $y) {
-                if ($y['year'] === $currentYear - 1) {
-                    $this->SetValue('H' . $i, round((float) $y['hours'], 1));
+                if ($year === $currentYear - 1) {
+                    $this->SetValue('H' . $i, round((float) $data['hours'], 1));
                 }
-                if ($y['year'] === $currentYear) {
-                    $this->SetValue('HC' . $i, round((float) $y['hours'], 1));
+                if ($year === $currentYear) {
+                    $this->SetValue('HC' . $i, round((float) $data['hours'], 1));
                 }
             }
 
@@ -194,23 +220,35 @@ class Benutzungsstunden extends IPSModule
         $this->WriteAttributeString('Cache', json_encode($newCache));
 
         $result = [
-            'theme'        => $this->ReadPropertyInteger('Theme'),
             'showForecast' => $this->ReadPropertyBoolean('ShowForecast'),
             'currentYear'  => $currentYear,
             'years'        => $years,
             'updated'      => time(),
+            'pending'      => $pending,
             'sources'      => $resultSources
         ];
         $json = json_encode($result);
         $this->WriteAttributeString('Result', $json);
         $this->UpdateVisualizationValue($json);
 
+        $this->SendDebug('Update', sprintf('Fertig, noch offene Monate: %d', $pending), 0);
         $this->SetStatus($hasError ? 202 : 102);
+
+        if ($pending > 0) {
+            $this->SetTimerInterval('Update', 2000);
+        } else {
+            $this->SetTimerInterval('Update', max(0, $this->ReadPropertyInteger('UpdateInterval')) * 60 * 1000);
+        }
     }
 
     // ------------------------------------------------------------------ Berechnung
 
-    private function calculateYear(int $archiveID, array $src, int $year): array
+    /**
+     * Jahreswerte aus Monatswerten. Abgeschlossene Monate kommen aus dem Cache ($months),
+     * fehlende werden berechnet, solange das Zeitbudget reicht.
+     * Liefert ['busy' => true], wenn noch Monate fehlen.
+     */
+    private function calculateYear(int $archiveID, array $src, int $year, array &$months, float $deadline, int &$pending): array
     {
         $start = mktime(0, 0, 0, 1, 1, $year);
         $yearEnd = mktime(0, 0, 0, 1, 1, $year + 1);
@@ -226,22 +264,48 @@ class Benutzungsstunden extends IPSModule
         $peakTime = 0;
         $resolution = '';
         $ignored = 0;
+        $complete = true;
 
-        $mode = (int) $src['PeakMode'];
-        $ef = (float) $src['EnergyFactor'];
-
-        if ($mode === 0) {
-            // Energie + 15-min-Spitze aus 5-min-Aggregaten des Zählers (monatsweise wegen Abfragelimit)
-            [$energy, $peak, $peakTime, $resolution, $ignored] = $this->energyAndPeakFromCounters($archiveID, $src['Meters'], $ef, (float) $src['PeakLimit'], $start, $end);
-        } else {
-            $energy = $this->energyFromCounters($archiveID, $src['Meters'], $ef, $start, $end);
-            if ($mode === 1) {
-                [$peak, $peakTime] = $this->peakFromPowerVariable($archiveID, (int) $src['PowerVariable'], (float) $src['PowerFactor'], $start, $end);
-                $resolution = 'Messwert';
-            } else {
-                $peak = (float) $src['NominalPower'];
-                $resolution = 'Nennleistung';
+        for ($m = 1; $m <= 12; $m++) {
+            $mStart = mktime(0, 0, 0, $m, 1, $year);
+            if ($mStart >= $end) {
+                break;
             }
+            $mNext = mktime(0, 0, 0, $m + 1, 1, $year);
+            $monthDone = $mNext <= $now;
+            $id = sprintf('%04d-%02d', $year, $m);
+
+            if ($monthDone && isset($months[$id])) {
+                $d = $months[$id];
+            } else {
+                if (microtime(true) > $deadline) {
+                    $pending++;
+                    $complete = false;
+                    continue;
+                }
+                $d = $this->calculateMonth($archiveID, $src, $mStart, min($mNext, $end));
+                if ($monthDone) {
+                    $months[$id] = $d;
+                }
+            }
+
+            $energy += $d['e'];
+            $ignored += $d['i'];
+            if ($d['p'] > $peak) {
+                $peak = $d['p'];
+                $peakTime = $d['t'];
+                $resolution = $d['r'];
+            }
+        }
+
+        if (!$complete) {
+            return ['busy' => true];
+        }
+
+        if ((int) $src['PeakMode'] === 2) {
+            $peak = (float) $src['NominalPower'];
+            $peakTime = 0;
+            $resolution = 'Nennleistung';
         }
 
         $hours = $peak > 0 ? $energy / $peak : 0.0;
@@ -255,6 +319,7 @@ class Benutzungsstunden extends IPSModule
         }
 
         return [
+            'busy'           => false,
             'energy'         => round($energy, 3),
             'peak'           => round($peak, 3),
             'peakTime'       => $peakTime,
@@ -270,6 +335,27 @@ class Benutzungsstunden extends IPSModule
         ];
     }
 
+    /**
+     * Werte eines Monats: e = Energie kWh, p = Spitze kW, t = Zeitpunkt, r = Auflösung, i = ignorierte Intervalle
+     */
+    private function calculateMonth(int $archiveID, array $src, int $from, int $to): array
+    {
+        $mode = (int) $src['PeakMode'];
+        $ef = (float) $src['EnergyFactor'];
+
+        if ($mode === 0) {
+            [$e, $p, $t, $r, $i] = $this->energyAndPeakFromCounters($archiveID, $src['Meters'], $ef, (float) $src['PeakLimit'], $from, $to);
+            return ['e' => $e, 'p' => $p, 't' => $t, 'r' => $r, 'i' => $i];
+        }
+
+        $e = $this->energyFromCounters($archiveID, $src['Meters'], $ef, $from, $to);
+        if ($mode === 1) {
+            [$p, $t] = $this->peakFromPowerVariable($archiveID, (int) $src['PowerVariable'], (float) $src['PowerFactor'], $from, $to);
+            return ['e' => $e, 'p' => $p, 't' => $t, 'r' => 'Messwert', 'i' => 0];
+        }
+        return ['e' => $e, 'p' => 0.0, 't' => 0, 'r' => 'Nennleistung', 'i' => 0];
+    }
+
     /** Summe des Verbrauchs aller Zähler über Tagesaggregate (Avg = Verbrauch im Intervall). */
     private function energyFromCounters(int $archiveID, array $meters, float $factor, int $start, int $end): float
     {
@@ -283,7 +369,7 @@ class Benutzungsstunden extends IPSModule
     }
 
     /**
-     * Energie und höchster 15-min-Mittelwert der Summenleistung aller Zähler.
+     * Energie und höchster 15-min-Mittelwert der Summenleistung aller Zähler (Zeitraum max. 1 Monat).
      * Die 5-min-Aggregate jedes Zählers werden je Viertelstunde addiert, die Spitze ist
      * damit die zeitgleiche Summe (nicht die Summe der Einzelspitzen).
      * Fallback auf Stundenaggregate, falls keine 5-min-Daten vorhanden sind.
@@ -298,28 +384,22 @@ class Benutzungsstunden extends IPSModule
         $found = false;
 
         foreach ($meters as $varID) {
-            $month = (int) date('n', $start);
-            $year = (int) date('Y', $start);
-            $from = $start;
-            while ($from < $end) {
-                $month++;
-                $to = min($end, mktime(0, 0, 0, $month, 1, $year));
-                foreach ($this->getAggregated($archiveID, $varID, self::AGG_5MIN, $from, $to) as $row) {
-                    $found = true;
-                    $v = (float) $row['Avg'];
-                    $energy += $v;
-                    $b = intdiv((int) $row['TimeStamp'], 900);
-                    $buckets[$b] = ($buckets[$b] ?? 0.0) + $v;
-                }
-                $from = $to;
+            foreach ($this->getAggregated($archiveID, $varID, self::AGG_5MIN, $start, $end) as $row) {
+                $found = true;
+                $v = (float) $row['Avg'];
+                $energy += $v;
+                $b = intdiv((int) $row['TimeStamp'], 900);
+                $buckets[$b] = ($buckets[$b] ?? 0.0) + $v;
             }
         }
         $resolution = '15 min';
+        $bucketLen = 900;
         $toKW = 4 * $factor;           // kWh je 15 min → kW
 
         if (!$found) {
             // Fallback: Stundenwerte
             $resolution = '60 min';
+            $bucketLen = 3600;
             $toKW = $factor;
             foreach ($meters as $varID) {
                 foreach ($this->getAggregated($archiveID, $varID, self::AGG_HOUR, $start, $end) as $row) {
@@ -331,7 +411,6 @@ class Benutzungsstunden extends IPSModule
             }
         }
 
-        $bucketLen = $resolution === '15 min' ? 900 : 3600;
         $peak = 0.0;
         $peakTime = 0;
         $ignored = 0;
