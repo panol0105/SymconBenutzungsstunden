@@ -38,9 +38,10 @@ werden in der Kachel angezeigt und im Debug-Fenster mit Zeitpunkt protokolliert.
 Die Auswertung läuft fortlaufend ab dem **Startjahr** (Standard 2025) bis zum laufenden Jahr – jedes Jahr kommt automatisch ein Kalenderjahr (Jan–Dez) hinzu.
 
 ## Unvollständige Jahre
-Das Modul erkennt, ab wann alle Zähler Daten liefern. Beginnen die Daten erst nach dem 1. Januar (z. B. Logging seit 28.12.2025),
+Das Modul prüft je Zähler, ob das **Logging** schon vor dem 1. Januar lief (Standby-Zeiten ohne Zähleränderung zählen als Daten).
+Beginnt das Logging eines Zählers erst im Laufe des Jahres (z. B. seit 28.12.2025),
 wird das Jahr als **unvollständig** gekennzeichnet (grau, Hinweis mit Datenbeginn) und nicht in die Vorjahres-Variable geschrieben.
-Ab 14 Tagen Daten wird zusätzlich auf das Gesamtjahr hochgerechnet.
+Ab 14 Tagen Daten wird zusätzlich auf das Gesamtjahr hochgerechnet. Abschaltbar über „Unvollständige Jahre kennzeichnen“.
 
 ## Monatsansicht
 Umschalter „Jahre / Monate“ in der Kachel: Energie je Monat und Leistungsspitze je Monat; der Monat der Jahresspitze ist hervorgehoben.

@@ -25,6 +25,7 @@ class Benutzungsstunden extends IPSModule
     // Aggregationsstufen AC_GetAggregatedValues
     private const AGG_HOUR = 0;
     private const AGG_DAY = 1;
+    private const AGG_MONTH = 3;
     private const AGG_5MIN = 5;
 
     private const DEFAULT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
@@ -37,6 +38,7 @@ class Benutzungsstunden extends IPSModule
         $this->RegisterPropertyInteger('StartYear', 2025);
         $this->RegisterPropertyInteger('UpdateInterval', 60);
         $this->RegisterPropertyBoolean('ShowForecast', true);
+        $this->RegisterPropertyBoolean('DetectIncomplete', true);
 
         $this->RegisterAttributeString('Cache', '{}');
         $this->RegisterAttributeString('Result', '{}');
@@ -268,7 +270,6 @@ class Benutzungsstunden extends IPSModule
         $ignored = 0;
         $complete = true;
         $monthList = [];
-        $dataStart = null;      // ab hier liegen Daten aller Zähler vor
 
         for ($m = 1; $m <= 12; $m++) {
             $mStart = mktime(0, 0, 0, $m, 1, $year);
@@ -295,16 +296,13 @@ class Benutzungsstunden extends IPSModule
 
             $energy += $d['e'];
             $ignored += $d['i'];
-            if ($dataStart === null && ($d['f'] ?? null) !== null) {
-                $dataStart = (int) $d['f'];
-            }
             $monthList[] = [
                 'm' => $m,
                 'e' => round($d['e'], 1),
                 'p' => round($d['p'], 1),
                 't' => $d['t'],
                 'h' => $d['p'] > 0 ? round($d['e'] / $d['p'], 1) : 0,
-                'd' => ($d['f'] ?? null) !== null
+                'd' => true
             ];
             if ($d['p'] > $peak) {
                 $peak = $d['p'];
@@ -325,8 +323,16 @@ class Benutzungsstunden extends IPSModule
 
         $hours = $peak > 0 ? $energy / $peak : 0.0;
 
-        // Unvollständig: Daten beginnen mehr als einen Tag nach Jahresbeginn
+        // Unvollständig: Logging mindestens eines Zählers begann erst mehr als einen Tag nach Jahresbeginn.
+        // Maßgeblich ist der Logging-Beginn, nicht der erste Verbrauch (Standby ohne Zähleränderung zählt als Daten).
+        $dataStart = $this->ReadPropertyBoolean('DetectIncomplete') ? $this->loggingStartInYear($archiveID, $src['Meters'], $start, $end) : null;
         $incomplete = $dataStart !== null && $dataStart > $start + 86400;
+        if ($incomplete) {
+            foreach ($monthList as &$ml) {
+                $ml['d'] = mktime(0, 0, 0, $ml['m'] + 1, 1, $year) > $dataStart && mktime(0, 0, 0, $ml['m'], 1, $year) + 86400 >= $dataStart;
+            }
+            unset($ml);
+        }
         $coveredHours = max(0, ($end - max($start, $dataStart ?? $start)) / 3600);
 
         // Hochrechnung (laufendes Jahr bzw. unvollständiges Jahr) auf Basis der Stunden mit Daten, frühestens nach 14 Tagen
@@ -395,6 +401,38 @@ class Benutzungsstunden extends IPSModule
             }
         }
         return [$sum * $factor, $this->coverageStart($first, $meters)];
+    }
+
+    /**
+     * Beginn des Loggings im Jahr: Für jeden Zähler wird geprüft, ob es vor Jahresbeginn bereits einen
+     * geloggten Wert gibt. Wenn ja, deckt das Logging das ganze Jahr ab. Wenn nein, gilt der erste Tag
+     * mit Archivdaten im Jahr. Ergebnis ist der späteste Beginn aller Zähler (null = ganzes Jahr abgedeckt
+     * bzw. nicht bestimmbar).
+     */
+    private function loggingStartInYear(int $archiveID, array $meters, int $start, int $end): ?int
+    {
+        $latest = null;
+        foreach ($meters as $varID) {
+            $before = @AC_GetLoggedValues($archiveID, $varID, 0, $start - 1, 1);
+            if (is_array($before) && count($before) > 0) {
+                continue;   // Logging lief schon vor Jahresbeginn
+            }
+            $firstMonth = null;
+            foreach ($this->getAggregated($archiveID, $varID, self::AGG_MONTH, $start, $end) as $row) {
+                $firstMonth = min($firstMonth ?? PHP_INT_MAX, (int) $row['TimeStamp']);
+            }
+            if ($firstMonth === null) {
+                continue;   // im Jahr keine Daten – nicht bestimmbar, keine Meldung
+            }
+            $monthEnd = mktime(0, 0, 0, (int) date('n', $firstMonth) + 1, 1, (int) date('Y', $firstMonth));
+            $firstDay = null;
+            foreach ($this->getAggregated($archiveID, $varID, self::AGG_DAY, $firstMonth, min($monthEnd, $end)) as $row) {
+                $firstDay = min($firstDay ?? PHP_INT_MAX, (int) $row['TimeStamp']);
+            }
+            $first = $firstDay ?? $firstMonth;
+            $latest = $latest === null ? $first : max($latest, $first);
+        }
+        return $latest;
     }
 
     /** Zeitpunkt, ab dem alle Zähler Daten liefern (null, wenn ein Zähler im Zeitraum gar keine Daten hat). */
