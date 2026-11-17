@@ -29,11 +29,10 @@
   }
 
   /* Kopfzeile */
-  header { display: flex; align-items: center; gap: .6em 1em; padding: 3.6em 3.4em .8em 1.4em; flex-wrap: wrap; }
-  .title { display: flex; align-items: baseline; gap: .9em; flex: 1 1 auto; flex-wrap: wrap; min-width: 0; }
-  h1 { font-size: 2em; font-weight: 700; margin: 0; letter-spacing: -0.01em; white-space: nowrap; }
-  .sub { color: var(--ink-2); font-size: 1.05em; }
-  .meta { display: flex; align-items: center; gap: .6em; flex-wrap: wrap; }
+  /* Kopfzeile ohne eigenen Titel – den Namen zeigt Symcon über der Kachel */
+  header { display: flex; align-items: center; gap: .6em 1em; padding: 3.4em 3.4em .9em 1.4em; flex-wrap: wrap; }
+  .controls { display: flex; align-items: center; gap: .6em; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; }
+  .meta { display: flex; align-items: center; gap: .6em; flex-wrap: wrap; margin-left: auto; }
   .stand { color: var(--ink-3); font-size: .9em; margin-right: .3em; }
   .pill { display: inline-flex; align-items: center; gap: .35em; font-size: .88em; font-weight: 500; padding: .35em .8em; border-radius: 999px; background: rgba(26,159,69,.10); color: var(--ok); white-space: nowrap; }
   .pill.warn { background: rgba(224,123,0,.10); color: var(--warn); }
@@ -44,7 +43,6 @@
   .busy-txt { color: var(--accent); font-size: .95em; }
   .pill::before { content: ""; width: .45em; height: .45em; border-radius: 50%; background: currentColor; }
 
-  .toolbar { display: flex; align-items: center; gap: .6em; padding: 0 1.4em .9em; flex-wrap: wrap; }
   .years { display: flex; gap: 2px; background: var(--card); border-radius: 999px; padding: 3px; box-shadow: 0 1px 2px rgba(0,0,0,.04); overflow-x: auto; max-width: 100%; }
   .years button {
     font: inherit; font-size: .9em; color: var(--ink-2); background: none; border: 0; border-radius: 999px;
@@ -54,7 +52,9 @@
   .years button[aria-pressed="true"] { background: var(--accent); color: #fff; }
   .icon-btn { font: inherit; background: var(--card); border: 0; color: var(--ink-2); border-radius: 50%; width: 2.2em; height: 2.2em; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: color .15s; }
   .icon-btn:hover { color: var(--accent); }
-  .hint { color: var(--ink-3); font-size: .85em; margin-left: auto; }
+  .seg { display: inline-flex; gap: 2px; background: var(--inset); border-radius: 999px; padding: 2px; }
+  .seg button { font: inherit; font-size: .85em; color: var(--ink-2); background: none; border: 0; border-radius: 999px; padding: .2em .75em; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--accent); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
 
   /* Raster */
   main { flex: 1 1 auto; overflow-y: auto; padding: 0 1.4em 1.4em; display: grid; gap: 1.1em; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); align-content: start; }
@@ -79,6 +79,7 @@
   .hero .val { font-size: clamp(2.4em, 6vw, 3.6em); font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
   .hero .unit { font-size: 1.5em; font-weight: 600; color: var(--ink-2); }
   .hero .tag { font-size: .9em; color: var(--ink-3); margin-left: .3em; }
+  .hero.dim .val, .hero.dim .unit { color: var(--ink-3); }
   .fc { font-size: .95em; color: var(--ink-2); margin-top: -.3em; }
   .fc b { color: var(--accent); font-weight: 600; }
 
@@ -97,7 +98,9 @@
   .tile i { display: block; font-style: normal; font-size: .76em; color: var(--ink-3); margin-top: .25em; line-height: 1.3; }
 
   /* Jahresvergleich */
-  .chart-head { display: flex; justify-content: space-between; color: var(--ink-3); font-size: .82em; border-top: 1px solid var(--line); padding-top: .8em; }
+  .chart-head { display: flex; justify-content: space-between; align-items: center; gap: .6em; color: var(--ink-3); font-size: .82em; border-top: 1px solid var(--line); padding-top: .8em; flex-wrap: wrap; }
+  .chart-sub { display: flex; justify-content: space-between; color: var(--ink-3); font-size: .8em; margin: .2em 0 -.3em; }
+  .chart-sub b { color: var(--ink-2); font-weight: 500; }
   .chart { position: relative; }
   .chart svg { display: block; overflow: visible; }
   .chart .hit { cursor: pointer; }
@@ -134,17 +137,15 @@
   /* ---------- Responsive ---------- */
   /* Tablet / schmale Kachel */
   @media (max-width: 720px) {
-    header { padding: 3.2em 3em .6em 1.1em; }
-    .toolbar, main { padding-left: 1.1em; padding-right: 1.1em; }
-    .hint { display: none; }
+    header { padding: 3.2em 3em .7em 1.1em; }
+    main { padding-left: 1.1em; padding-right: 1.1em; }
   }
   /* Handy / kleine Kachel */
   @media (max-width: 560px) {
     body { font-size: 13px; }
-    header { padding: 3em 2.8em .5em 1em; gap: .3em .8em; }
-    h1 { font-size: 1.5em; }
-    .sub, .stand { display: none; }
-    .toolbar { padding: 0 1em .7em; }
+    header { padding: 3em 2.8em .6em 1em; gap: .4em .8em; }
+    .stand { display: none; }
+    .meta { margin-left: 0; }
     main { padding: 0 1em 1em; gap: .8em; }
     .card { padding: 1em; gap: .75em; border-radius: 14px; }
     .col-opt, .lfd { display: none; }
@@ -154,48 +155,44 @@
   /* sehr kleine Kachel: nur Kennzahl */
   @media (max-width: 340px), (max-height: 330px) {
     header { padding-top: 2.6em; }
-    h1 { font-size: 1.25em; }
-    .toolbar .icon-btn { display: none; }
-    .tiles, .chart-head, .chart, .fc, .meter .lbl, .note { display: none; }
+    .icon-btn, .meta { display: none; }
+    .tiles, .chart-head, .chart, .chart-sub, .fc, .meter .lbl, .note, .warn-box { display: none; }
     .hero .val, .card.solo .hero .val { font-size: 2.4em; }
   }
   /* niedrige Kachel: Diagramm weglassen */
   @media (max-height: 480px) {
-    .chart-head, .chart { display: none; }
+    .chart-head, .chart, .chart-sub { display: none; }
     .card.solo { grid-template-columns: 1fr; }
   }
 </style>
 </head>
 <body>
   <header>
-    <div class="title">
-      <h1>Benutzungsstunden</h1>
-      <span class="sub" id="sub">Gebäudeenergie · h/a</span>
+    <div class="controls">
+      <div class="years" id="years" role="group" aria-label="Jahr wählen"></div>
+      <button class="icon-btn" id="refresh" title="Jetzt neu berechnen" aria-label="Neu berechnen">↻</button>
     </div>
     <div class="meta">
       <span class="stand" id="stand"></span>
       <span id="status"></span>
     </div>
   </header>
-  <div class="toolbar">
-    <div class="years" id="years" role="group" aria-label="Jahr wählen"></div>
-    <button class="icon-btn" id="refresh" title="Jetzt neu berechnen" aria-label="Neu berechnen">↻</button>
-    <span class="hint">h/a = Jahresenergie ÷ Bezugsleistung</span>
-  </div>
   <main id="cards"><div class="empty">Warte auf Daten …</div></main>
   <div id="tip"></div>
 
 <script>
   let state = null;
   let selectedYear = null;
+  let view = 'years';          // 'years' | 'months'
 
   const ACCENT = 'rgb(0, 117, 187)';
+  const LIGHT = 'rgba(0,117,187,0.22)';
   const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
   const nf1 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
   const nf2 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
   const MODE_TXT = ['15-min-Spitze', 'Leistungsmessung', 'Nennleistung'];
+  const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
-  // Wert + Einheit getrennt, damit die Einheit kleiner gesetzt werden kann
   function energyParts(kwh) {
     if (kwh >= 1e6) return [nf2.format(kwh / 1e6), 'GWh'];
     if (kwh >= 1e4) return [nf2.format(kwh / 1e3), 'MWh'];
@@ -225,7 +222,23 @@
   }
 
   function yearRow(s, yr) { return s.years.find(r => r.year === yr); }
+  const hasData = y => y && !y.busy && y.energy > 0;
 
+  // ---------------------------------------------------------------- Prüfungen
+  function checks(y) {
+    const out = [];
+    if (!hasData(y)) return out;
+    if (y.incomplete) {
+      const days = Math.max(1, Math.round(y.coveredHours / 24));
+      out.push(['warn', `Unvollständiges Jahr: Daten erst ab ${fmtDate(y.dataStart)} (${nf0.format(days)} ${days === 1 ? 'Tag' : 'Tage'}). Der Wert ist kein aussagekräftiger Jahreswert.`]);
+    }
+    if (y.peak <= 0) out.push(['err', 'Keine gültige Bezugsleistung ermittelt – alle Intervalle lagen über der Plausibilitätsgrenze. Bitte Faktor Energie → kWh prüfen (Wh-Zähler: 0,001).']);
+    if (y.hours > y.hoursInYear) out.push(['err', `Unplausibel: ${nf0.format(y.hours)} h/a sind mehr als ${nf0.format(y.hoursInYear)} Jahresstunden. Bitte Faktor Energie → kWh prüfen (Wh-Zähler: 0,001).`]);
+    if (y.ignored > 20) out.push(['warn', `${nf0.format(y.ignored)} Intervalle über der Plausibilitätsgrenze ignoriert. Grenze oder Faktor prüfen – sonst ist die Bezugsleistung zu niedrig.`]);
+    return out;
+  }
+
+  // ---------------------------------------------------------------- Aufbau
   function render() {
     const yb = document.getElementById('years');
     yb.innerHTML = state.years.slice().reverse().map(y =>
@@ -235,15 +248,16 @@
     if (act) yb.scrollLeft = act.offsetLeft - 8;
 
     const errors = state.sources.filter(s => s.error).length;
-    const implaus = state.sources.filter(s => checks(yearRow(s, selectedYear)).length > 0).length;
+    const sel = state.sources.map(s => checks(yearRow(s, selectedYear)));
+    const implaus = sel.filter(c => c.some(w => w[0] === 'err' || !/^Unvollständig/.test(w[1]))).length;
+    const incomplete = state.sources.filter(s => { const y = yearRow(s, selectedYear); return hasData(y) && y.incomplete; }).length;
     document.getElementById('status').innerHTML =
       (state.pending > 0 ? `<span class="pill busy">Berechnung läuft · ${state.pending} Monate offen</span> ` : '') +
       (errors ? `<span class="pill err">${errors} Messstelle${errors > 1 ? 'n' : ''} prüfen</span> ` : '') +
-      (implaus ? `<span class="pill warn">Werte unplausibel</span>` : '') +
-      (!errors && !implaus && !(state.pending > 0) ? `<span class="pill">Alle Werte OK</span>` : '');
+      (implaus ? `<span class="pill warn">Werte unplausibel</span> ` : '') +
+      (!implaus && incomplete ? `<span class="pill warn">${selectedYear} unvollständig</span> ` : '') +
+      (!errors && !implaus && !incomplete && !(state.pending > 0) ? `<span class="pill">Alle Werte OK</span>` : '');
     document.getElementById('stand').textContent = 'Stand ' + fmtDate(state.updated, true);
-    document.getElementById('sub').textContent =
-      state.sources.map(s => s.name).join(' · ') + ' · ' + selectedYear;
 
     const main = document.getElementById('cards');
     if (state.sources.length === 0) {
@@ -252,6 +266,7 @@
     }
     const solo = state.sources.length === 1;
     main.innerHTML = (solo ? '' : overview()) + state.sources.map((s, i) => card(s, i, solo)).join('');
+    main.querySelectorAll('.seg button').forEach(b => b.onclick = () => { view = b.dataset.v; render(); });
     drawCharts();
     main.querySelectorAll('tbody tr[data-s]').forEach(tr => tr.onclick = () => {
       const el = main.querySelector(`.card[data-card="${tr.dataset.s}"]`);
@@ -259,32 +274,30 @@
     });
   }
 
-  // Übersichtstabelle im Stil „Energieverteilung“
+  // Übersichtstabelle (nur bei mehreren Energiearten)
   function overview() {
     const running = selectedYear === state.currentYear;
     const rows = state.sources.map((s, i) => {
       const y = yearRow(s, selectedYear);
       const name = `<span class="name-cell"><span class="sq" style="background:${s.color}"></span>${esc(s.name)}</span>`;
-      if (y && y.busy) {
-        return `<tr data-s="${i}"><td>${name}</td><td colspan="5" class="busy-txt">wird berechnet …</td><td class="col-opt"></td></tr>`;
-      }
-      if (s.error || !y || y.energy <= 0) {
+      if (y && y.busy) return `<tr data-s="${i}"><td>${name}</td><td colspan="5" class="busy-txt">wird berechnet …</td><td class="col-opt"></td></tr>`;
+      if (s.error || !hasData(y)) {
         return `<tr data-s="${i}"><td>${name}</td><td colspan="5" style="color:var(--ink-3)">${s.error ? '⚠ ' + esc(s.error) : 'keine Daten'}</td><td class="col-opt"></td></tr>`;
       }
       const pct = y.hours / y.hoursInYear * 100;
-      const fc = running && state.showForecast && y.forecastHours != null;
+      const fc = (running || y.incomplete) && state.showForecast && y.forecastHours != null;
       return `<tr data-s="${i}">
-        <td>${name}</td>
+        <td>${name}${y.incomplete ? ' <span class="u" style="color:var(--warn)">unvollst.</span>' : ''}</td>
         <td>${vu(energyParts(y.energy), 'span')}</td>
         <td class="col-opt">${vu(powerParts(y.peak), 'span')}</td>
-        <td class="h acc">${nf0.format(y.hours)}<span class="u">h/a</span></td>
+        <td class="h ${y.incomplete ? '' : 'acc'}" ${y.incomplete ? 'style="color:var(--ink-3)"' : ''}>${nf0.format(y.hours)}<span class="u">h/a</span></td>
         <td class="col-opt">${fc ? '≈ ' + nf0.format(y.forecastHours) + '<span class="u">h/a</span>' : '–'}</td>
         <td ${pct > 100 ? 'style="color:var(--err)"' : ''}>${pct > 100 ? '> 100 % ⚠' : nf1.format(pct) + ' %'}</td>
         <td class="col-opt">${sparkline(s)}</td>
       </tr>`;
     }).join('');
     return `<section class="card wide">
-      <div class="card-head"><h2>Übersicht ${selectedYear}${running ? ' (bisher)' : ''}</h2><span class="right">Benutzungsstunden je Energieart</span></div>
+      <div class="card-head"><h2>Übersicht ${selectedYear}${running ? ' (bisher)' : ''}</h2><span class="right">h/a = Jahresenergie ÷ Bezugsleistung</span></div>
       <div class="tbl-wrap"><table>
         <thead><tr><th>Energieart</th><th>Energie</th><th class="col-opt">Bezugsleistung</th><th>Benutzungsstunden</th><th class="col-opt">Hochrechnung</th><th>Auslastung</th><th class="col-opt">Verlauf</th></tr></thead>
         <tbody>${rows}</tbody>
@@ -293,24 +306,14 @@
   }
 
   function sparkline(s) {
-    const pts = state.years.map(yr => { const r = yearRow(s, yr); if (r && r.busy) return 0; return r && r.final !== false ? r.hours : (r && r.forecastHours) || (r && r.hours) || 0; });
-    const W = 80, H = 22, max = Math.max(1, ...pts), min = 0, span = max;
-    const xy = pts.map((v, i) => [pts.length > 1 ? i * W / (pts.length - 1) : W / 2, v > 0 ? H - 3 - (v - min) / span * (H - 6) : null]);
-    const d = xy.filter(p => p[1] !== null).map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-    const last = xy.filter(p => p[1] !== null).pop();
+    const pts = state.years.map(yr => { const r = yearRow(s, yr); if (!hasData(r) || r.incomplete) return 0; return r.final ? r.hours : (r.forecastHours || r.hours); });
+    const W = 80, H = 22, max = Math.max(1, ...pts);
+    const xy = pts.map((v, i) => [pts.length > 1 ? i * W / (pts.length - 1) : W / 2, v > 0 ? H - 3 - v / max * (H - 6) : null]).filter(p => p[1] !== null);
+    const d = xy.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+    const last = xy[xy.length - 1];
     return `<svg class="spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
       <path d="${d}" fill="none" stroke="${ACCENT}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
       ${last ? `<circle cx="${last[0]}" cy="${last[1]}" r="2.5" fill="${ACCENT}"/>` : ''}</svg>`;
-  }
-
-  // Hinweise auf unplausible Ergebnisse (meist falscher Faktor)
-  function checks(y) {
-    const out = [];
-    if (!y || y.busy || y.energy <= 0) return out;
-    if (y.peak <= 0) out.push(['err', 'Keine gültige Bezugsleistung ermittelt – alle Intervalle lagen über der Plausibilitätsgrenze. Bitte Faktor Energie → kWh prüfen (Wh-Zähler: 0,001).']);
-    if (y.hours > y.hoursInYear) out.push(['err', `Unplausibel: ${nf0.format(y.hours)} h/a sind mehr als ${nf0.format(y.hoursInYear)} Jahresstunden. Bitte Faktor Energie → kWh prüfen (Wh-Zähler: 0,001).`]);
-    if (y.ignored > 20) out.push(['warn', `${nf0.format(y.ignored)} Intervalle über der Plausibilitätsgrenze ignoriert. Grenze oder Faktor prüfen – sonst ist die Bezugsleistung zu niedrig.`]);
-    return out;
   }
 
   function card(s, idx, solo) {
@@ -320,88 +323,155 @@
 
     const y = yearRow(s, selectedYear);
     if (y && y.busy) {
-      return `<section class="${cls}" data-card="${idx}">${head}<div class="col-a"><div class="hero"><span class="val" style="color:var(--ink-3)">…</span></div>
-              <div class="busy-txt">${selectedYear} wird aus dem Archiv berechnet. Das kann beim ersten Mal einige Minuten dauern.</div></div><div class="col-b">${chartBox(idx)}</div></section>`;
+      return `<section class="${cls}" data-card="${idx}">${head}<div class="col-a"><div class="hero dim"><span class="val">…</span></div>
+              <div class="busy-txt">${selectedYear} wird aus dem Archiv berechnet. Das kann beim ersten Mal einige Minuten dauern.</div></div><div class="col-b">${chartBox(s, idx)}</div></section>`;
     }
-    if (!y || y.energy <= 0) {
-      return `<section class="${cls}" data-card="${idx}">${head}<div class="col-a"><div class="hero"><span class="val" style="color:var(--ink-3)">–</span></div>
-              <div class="fc">Keine Archivdaten für ${selectedYear}.</div></div><div class="col-b">${chartBox(idx)}</div></section>`;
+    if (!hasData(y)) {
+      return `<section class="${cls}" data-card="${idx}">${head}<div class="col-a"><div class="hero dim"><span class="val">–</span></div>
+              <div class="fc">Keine Archivdaten für ${selectedYear}.</div></div><div class="col-b">${chartBox(s, idx)}</div></section>`;
     }
     const running = !y.final;
-    const showFc = running && state.showForecast && y.forecastHours != null;
+    const showFc = (running || y.incomplete) && state.showForecast && y.forecastHours != null;
     const pct = Math.min(1, y.hours / y.hoursInYear);
     const fcPct = showFc ? Math.min(1, y.forecastHours / y.hoursInYear) : 0;
     const peakInfo = s.mode === 2 ? 'fester Wert' : fmtDate(y.peakTime, true) +
       (y.ignored && y.ignored <= 20 ? `<br><span style="color:var(--warn)">${y.ignored} Ausreißer ignoriert</span>` : '');
     const warnings = checks(y).map(w => `<div class="warn-box ${w[0]}">⚠ ${w[1]}</div>`).join('');
-    const notes = (s.mode === 0 && y.resolution === '60 min')
-      ? '<div class="note">Spitze aus Stundenmitteln (keine 5-min-Daten im Archiv) – die echte 15-min-Spitze kann etwas höher liegen.</div>' : '';
+    let notes = '';
+    if (s.mode === 0 && y.resolution === '60 min') notes += '<div class="note">Spitze aus Stundenmitteln (keine 5-min-Daten im Archiv) – die echte 15-min-Spitze kann etwas höher liegen.</div>';
+    if (y.incomplete && y.forecastHours == null) notes += '<div class="note">Für eine Hochrechnung auf das ganze Jahr sind mindestens 14 Tage Daten nötig.</div>';
+    const tag = y.incomplete ? 'unvollständig' : (running ? 'bisher' : '');
+    const fcLabel = y.incomplete ? `Hochrechnung auf ${selectedYear}` : `Hochrechnung ${selectedYear}`;
 
     return `<section class="${cls}" data-card="${idx}">${head}
       <div class="col-a">${warnings}
-      <div class="hero"><span class="val">${nf0.format(y.hours)}</span><span class="unit">h/a</span>${running ? '<span class="tag">bisher</span>' : ''}</div>
-      ${showFc ? `<div class="fc">Hochrechnung ${selectedYear}: <b>≈ ${nf0.format(y.forecastHours)} h/a</b></div>` : ''}
+      <div class="hero ${y.incomplete ? 'dim' : ''}"><span class="val">${nf0.format(y.hours)}</span><span class="unit">h/a</span>${tag ? `<span class="tag">${tag}</span>` : ''}</div>
+      ${showFc ? `<div class="fc">${fcLabel}: <b>≈ ${nf0.format(y.forecastHours)} h/a</b></div>` : ''}
       <div class="meter" title="Anteil an ${nf0.format(y.hoursInYear)} Jahresstunden">
         <div class="bar">
           ${showFc ? `<div class="fcfill" style="width:${fcPct * 100}%"></div>` : ''}
-          <div class="fill" style="width:${pct * 100}%"></div>
+          <div class="fill" style="width:${pct * 100}%${y.incomplete ? ';background:var(--ink-3)' : ''}"></div>
         </div>
         <div class="lbl"><span>0</span><span>${nf0.format(y.hoursInYear)} h</span></div>
       </div>
       <div class="tiles">
-        <div class="tile"><span>Energie${running ? ' bisher' : ''}</span><b>${vu(energyParts(y.energy))}</b>${showFc ? `<i>Jahr ≈ ${txt(energyParts(y.forecastEnergy))}</i>` : '<i>Kalenderjahr</i>'}</div>
+        <div class="tile"><span>Energie${running || y.incomplete ? ' bisher' : ''}</span><b>${vu(energyParts(y.energy))}</b>${showFc ? `<i>Jahr ≈ ${txt(energyParts(y.forecastEnergy))}</i>` : (y.incomplete ? `<i>Daten ab ${fmtDate(y.dataStart)}</i>` : '<i>Kalenderjahr</i>')}</div>
         <div class="tile"><span>Bezugsleistung</span><b>${vu(powerParts(y.peak))}</b><i>${peakInfo}</i></div>
         <div class="tile"><span>Auslastung</span><b>${y.hours > y.hoursInYear ? '> 100' : nf1.format(pct * 100)}<small>%</small></b><i>${showFc ? 'Jahr ≈ ' + nf1.format(fcPct * 100) + ' %' : 'von ' + nf0.format(y.hoursInYear) + ' h'}</i></div>
       </div>
       ${notes}</div>
-      <div class="col-b">${chartBox(idx)}</div>
+      <div class="col-b">${chartBox(s, idx)}</div>
     </section>`;
   }
 
-  function chartBox(idx) {
-    return state.years.length < 2 ? '' :
-      `<div class="chart-head"><span>Jahresvergleich</span><span>h/a</span></div><div class="chart" data-s="${idx}"></div>`;
+  // Diagrammbereich: Umschalter Jahre / Monate
+  function chartBox(s, idx) {
+    const seg = `<span class="seg" role="group" aria-label="Ansicht"><button data-v="years" aria-pressed="${view === 'years'}">Jahre</button><button data-v="months" aria-pressed="${view === 'months'}">Monate ${selectedYear}</button></span>`;
+    if (view === 'years') {
+      return `<div class="chart-head">${seg}<span>Benutzungsstunden h/a</span></div><div class="chart" data-s="${idx}" data-k="years"></div>`;
+    }
+    const y = yearRow(s, selectedYear);
+    let out = `<div class="chart-head">${seg}<span>Monatswerte</span></div>`;
+    if (!hasData(y) || !y.months || !y.months.length) return out + `<div class="note">Keine Monatswerte für ${selectedYear}.</div>`;
+    const pm = s.mode !== 2 && y.peakTime ? new Date(y.peakTime * 1000).getMonth() + 1 : 0;
+    out += `<div class="chart-sub"><span>Energie je Monat</span><b>${txt(energyParts(y.energy))}</b></div><div class="chart" data-s="${idx}" data-k="menergy"></div>`;
+    if (s.mode !== 2) {
+      out += `<div class="chart-sub"><span>Leistungsspitze je Monat${pm ? ' · Jahresspitze im ' + MON[pm - 1] : ''}</span><b>${txt(powerParts(y.peak))}</b></div><div class="chart" data-s="${idx}" data-k="mpeak"></div>`;
+    }
+    return out;
   }
 
   function drawCharts() {
     document.querySelectorAll('.chart[data-s]').forEach(el => {
-      const idx = +el.dataset.s;
+      const s = state.sources[+el.dataset.s];
+      const kind = el.dataset.k;
       const solo = !!el.closest('.solo');
-      const H = solo && window.innerWidth > 720 && window.innerHeight > 560 ? 260 : (window.innerWidth > 560 ? 120 : 100);
-      el.innerHTML = chartSvg(state.sources[idx], idx, Math.max(140, el.clientWidth), H);
-      el.querySelectorAll('.hit').forEach(bindBar);
+      const wide = solo && window.innerWidth > 720 && window.innerHeight > 560;
+      let H = kind === 'years' ? (wide ? 260 : (window.innerWidth > 560 ? 120 : 100)) : (wide ? 130 : 96);
+      const cfg = kind === 'years' ? yearItems(s) : monthItems(s, kind);
+      el._items = cfg;
+      el.innerHTML = barsSvg(cfg, Math.max(140, el.clientWidth), H);
+      el.querySelectorAll('.hit').forEach(h => bindHit(el, h));
     });
   }
 
-  // Ein Balken je Jahr: gewähltes Jahr in Akzentfarbe, übrige dezent; Hochrechnung gestrichelt
-  function chartSvg(s, idx, W, H) {
-    const rows = state.years.map(yr => { const r = yearRow(s, yr); return r && !r.busy ? r : { year: yr, hours: 0, energy: 0, busy: r && r.busy }; });
+  // Jahresbalken: gewähltes Jahr Akzent, andere hell, unvollständige grau gestrichelt
+  function yearItems(s) {
+    return state.years.map(yr => {
+      const r = yearRow(s, yr);
+      const ok = hasData(r);
+      const showFc = ok && state.showForecast && r.forecastHours && (!r.final || r.incomplete);
+      return {
+        label: String(yr), short: "'" + String(yr).slice(-2),
+        v: ok ? r.hours : 0, ghost: showFc ? r.forecastHours : 0,
+        sel: yr === selectedYear, inc: ok && r.incomplete,
+        top: ok ? nf0.format(r.hours) : '',
+        click: () => { selectedYear = yr; render(); },
+        tip: () => {
+          if (r && r.busy) return `${yr}<br>wird berechnet …`;
+          if (!ok) return `${yr}<br>keine Daten`;
+          let t = `${yr}${r.incomplete ? ' (unvollständig, Daten ab ' + fmtDate(r.dataStart) + ')' : (r.final ? '' : ' (bisher)')}<br><b>${nf0.format(r.hours)} h/a</b> · ${txt(energyParts(r.energy))} · ${txt(powerParts(r.peak))}`;
+          if (showFc) t += `<br>Hochrechnung ≈ ${nf0.format(r.forecastHours)} h/a`;
+          return t;
+        }
+      };
+    });
+  }
+
+  // Monatsbalken: Energie bzw. Spitze; Monat der Jahresspitze in Akzentfarbe
+  function monthItems(s, kind) {
+    const y = yearRow(s, selectedYear);
+    const pm = y.peakTime ? new Date(y.peakTime * 1000).getMonth() + 1 : 0;
+    return MON.map((name, i) => {
+      const m = (y.months || []).find(x => x.m === i + 1);
+      const v = !m ? 0 : (kind === 'menergy' ? m.e : m.p);
+      return {
+        label: name, short: name.charAt(0),
+        v: v, ghost: 0,
+        sel: kind === 'mpeak' ? (i + 1 === pm) : false,
+        inc: m && !m.d,
+        top: kind === 'mpeak' && i + 1 === pm ? txt(powerParts(m.p)) : '',
+        click: null,
+        tip: () => {
+          if (!m) return `${name} ${selectedYear}<br>keine Daten`;
+          return `${name} ${selectedYear}${m.d ? '' : ' (unvollständig)'}<br>Energie <b>${txt(energyParts(m.e))}</b>` +
+            (s.mode !== 2 ? `<br>Spitze ${txt(powerParts(m.p))}${m.t ? ' am ' + fmtDate(m.t, true) : ''}<br>Monat: ${nf0.format(m.h)} h Volllast` : '');
+        }
+      };
+    });
+  }
+
+  function barsSvg(items, W, H) {
     const top = 16, base = H - 20;
-    const max = Math.max(1, ...rows.map(r => Math.max(r.hours, (state.showForecast && r.forecastHours) || 0)));
-    const step = W / rows.length, bw = Math.min(H > 150 ? 64 : 34, step * 0.56);
-    const shortYears = step < 40;
+    const max = Math.max(1, ...items.map(it => Math.max(it.v, it.ghost || 0)));
+    const step = W / items.length, bw = Math.min(H > 150 ? 64 : 34, step * 0.6);
+    const useShort = step < (items.length > 6 ? 34 : 40);
+    const anySel = items.some(it => it.sel);
     let out = '';
-    // dezente Hilfslinien
     [0.5, 1].forEach(f => {
       const yy = base - f * (base - top);
       out += `<line x1="0" x2="${W}" y1="${yy}" y2="${yy}" stroke="rgba(84,87,90,0.10)" stroke-dasharray="3 3"/>`;
     });
     out += `<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="rgba(84,87,90,0.25)"/>`;
-    rows.forEach((r, i) => {
+    items.forEach((it, i) => {
       const cx = step * i + step / 2, x = cx - bw / 2;
-      const sel = r.year === selectedYear;
-      const fill = sel ? ACCENT : 'rgba(0,117,187,0.22)';
-      if (state.showForecast && r.forecastHours && !r.final) {
-        const hf = (r.forecastHours / max) * (base - top);
-        out += `<path d="${barPath(x, base, bw, hf)}" fill="rgba(0,117,187,0.06)" stroke="${ACCENT}" stroke-width="1.2" stroke-dasharray="3 2" opacity="${sel ? 1 : 0.5}"/>`;
+      if (it.ghost) {
+        const hf = it.ghost / max * (base - top);
+        out += `<path d="${barPath(x, base, bw, hf)}" fill="rgba(0,117,187,0.06)" stroke="${ACCENT}" stroke-width="1.2" stroke-dasharray="3 2" opacity="${it.sel ? 1 : 0.5}"/>`;
       }
-      const h = (r.hours / max) * (base - top);
-      if (h > 0) out += `<path d="${barPath(x, base, bw, h)}" fill="${fill}"/>`;
-      if (sel && r.hours > 0) out += `<text x="${cx}" y="${base - Math.max(h, r.forecastHours && state.showForecast && !r.final ? (r.forecastHours / max) * (base - top) : 0) - 4}" text-anchor="middle" style="fill:var(--ink);font-weight:600">${nf0.format(r.hours)}</text>`;
-      out += `<rect class="hit" data-s="${idx}" data-y="${r.year}" x="${cx - step / 2}" y="0" width="${step}" height="${H}" fill="transparent"/>`;
-      out += `<text x="${cx}" y="${H - 4}" text-anchor="middle" ${sel ? 'style="fill:' + ACCENT + ';font-weight:600"' : ''}>${shortYears ? "'" + String(r.year).slice(-2) : r.year}</text>`;
+      const h = it.v / max * (base - top);
+      if (h > 0) {
+        if (it.inc) out += `<path d="${barPath(x, base, bw, h)}" fill="rgba(84,87,90,0.12)" stroke="rgba(84,87,90,0.45)" stroke-width="1" stroke-dasharray="3 2"/>`;
+        else out += `<path d="${barPath(x, base, bw, h)}" fill="${it.sel || !anySel ? ACCENT : LIGHT}"/>`;
+      }
+      if (it.top && (it.sel || !anySel) && h > 0) {
+        const hTop = Math.max(h, it.ghost ? it.ghost / max * (base - top) : 0);
+        out += `<text x="${cx}" y="${base - hTop - 4}" text-anchor="middle" style="fill:var(--ink);font-weight:600">${it.top}</text>`;
+      }
+      out += `<rect class="hit" data-i="${i}" x="${cx - step / 2}" y="0" width="${step}" height="${H}" fill="transparent"/>`;
+      out += `<text x="${cx}" y="${H - 4}" text-anchor="middle" ${it.sel ? 'style="fill:' + ACCENT + ';font-weight:600"' : ''}>${useShort ? it.short : it.label}</text>`;
     });
-    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Benutzungsstunden ${esc(s.name)} im Jahresvergleich">${out}</svg>`;
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img">${out}</svg>`;
   }
 
   function barPath(x, base, w, h) {
@@ -411,27 +481,19 @@
   }
 
   const tip = document.getElementById('tip');
-  function bindBar(el) {
-    const s = state.sources[+el.dataset.s];
-    const yr = +el.dataset.y;
-    const r = yearRow(s, yr);
-    const html = () => {
-      if (r && r.busy) return `${yr}<br>wird berechnet …`;
-      if (!r || r.energy <= 0) return `${yr}<br>keine Daten`;
-      let t = `${yr}${r.final ? '' : ' (bisher)'}<br><b>${nf0.format(r.hours)} h/a</b> · ${txt(energyParts(r.energy))} · ${txt(powerParts(r.peak))}`;
-      if (!r.final && state.showForecast && r.forecastHours) t += `<br>Hochrechnung ≈ ${nf0.format(r.forecastHours)} h/a`;
-      return t;
-    };
-    el.addEventListener('mousemove', e => {
-      tip.innerHTML = html();
+  function bindHit(el, hit) {
+    const it = el._items[+hit.dataset.i];
+    hit.addEventListener('mousemove', e => {
+      tip.innerHTML = it.tip();
       const tw = tip.offsetWidth, th = tip.offsetHeight;
       let x = e.clientX + 12, y = e.clientY - th - 8;
       if (x + tw > window.innerWidth - 4) x = e.clientX - tw - 12;
       if (y < 4) y = e.clientY + 14;
       tip.style.left = x + 'px'; tip.style.top = y + 'px'; tip.style.opacity = 1;
     });
-    el.addEventListener('mouseleave', () => tip.style.opacity = 0);
-    el.addEventListener('click', () => { tip.style.opacity = 0; selectedYear = yr; render(); });
+    hit.addEventListener('mouseleave', () => tip.style.opacity = 0);
+    hit.style.cursor = it.click ? 'pointer' : 'default';
+    hit.addEventListener('click', () => { tip.style.opacity = 0; if (it.click) it.click(); });
   }
 
   document.getElementById('refresh').onclick = () => {
