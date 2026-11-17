@@ -158,10 +158,10 @@
             "items": [
                 {
                     "type": "NumberSpinner",
-                    "name": "Years",
-                    "caption": "Anzahl Jahre",
-                    "minimum": 1,
-                    "maximum": 20
+                    "name": "StartYear",
+                    "caption": "Startjahr (fortlaufend bis heute)",
+                    "minimum": 2000,
+                    "maximum": 2100
                 },
                 {
                     "type": "NumberSpinner",

@@ -34,7 +34,7 @@ class Benutzungsstunden extends IPSModule
         parent::Create();
 
         $this->RegisterPropertyString('Sources', '[]');
-        $this->RegisterPropertyInteger('Years', 5);
+        $this->RegisterPropertyInteger('StartYear', 2025);
         $this->RegisterPropertyInteger('UpdateInterval', 60);
         $this->RegisterPropertyBoolean('ShowForecast', true);
 
@@ -160,7 +160,9 @@ class Benutzungsstunden extends IPSModule
         $newCache = [];
 
         $currentYear = (int) date('Y');
-        $years = range($currentYear - max(1, $this->ReadPropertyInteger('Years')) + 1, $currentYear);
+        // fortlaufend ab Startjahr: 2025, 2026, 2027 …
+        $startYear = max(2000, min($currentYear, $this->ReadPropertyInteger('StartYear')));
+        $years = range($startYear, $currentYear);
         $hasError = false;
         $resultSources = [];
 

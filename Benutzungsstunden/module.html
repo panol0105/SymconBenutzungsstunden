@@ -29,7 +29,7 @@
   }
 
   /* Kopfzeile */
-  header { display: flex; align-items: center; gap: .6em 1em; padding: 1.1em 1.4em .8em; flex-wrap: wrap; }
+  header { display: flex; align-items: center; gap: .6em 1em; padding: 3.6em 3.4em .8em 1.4em; flex-wrap: wrap; }
   .title { display: flex; align-items: baseline; gap: .9em; flex: 1 1 auto; flex-wrap: wrap; min-width: 0; }
   h1 { font-size: 2em; font-weight: 700; margin: 0; letter-spacing: -0.01em; white-space: nowrap; }
   .sub { color: var(--ink-2); font-size: 1.05em; }
@@ -60,6 +60,15 @@
   main { flex: 1 1 auto; overflow-y: auto; padding: 0 1.4em 1.4em; display: grid; gap: 1.1em; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); align-content: start; }
   .card { background: var(--card); border-radius: var(--radius); padding: 1.15em 1.3em 1.2em; display: flex; flex-direction: column; gap: .9em; min-width: 0; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
   .card.wide { grid-column: 1 / -1; }
+  .card.solo { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(300px, 1fr) minmax(320px, 1.5fr); gap: .9em 2.4em; align-items: start; }
+  .card.solo > .card-head { grid-column: 1 / -1; }
+  .col-a, .col-b { display: flex; flex-direction: column; gap: .9em; min-width: 0; }
+  .card.solo .col-b .chart-head { border-top: 0; padding-top: 0; }
+  .card.solo .hero .val { font-size: clamp(2.8em, 6vw, 4.4em); }
+  .warn-box { border-radius: 10px; padding: .6em .8em; font-size: .88em; line-height: 1.4; background: rgba(224,123,0,.10); color: var(--warn); }
+  .warn-box.err { background: rgba(217,58,58,.10); color: var(--err); }
+  .note { font-size: .8em; color: var(--ink-3); }
+  @media (max-width: 720px) { .card.solo { grid-template-columns: 1fr; } }
   .card-head { display: flex; align-items: baseline; gap: .6em; }
   .card-head h2 { font-size: 1.08em; font-weight: 600; margin: 0; display: flex; align-items: center; gap: .5em; min-width: 0; }
   .card-head .right { margin-left: auto; color: var(--ink-2); font-size: .92em; white-space: nowrap; }
@@ -67,7 +76,7 @@
 
   /* Hero */
   .hero { display: flex; align-items: baseline; gap: .35em; flex-wrap: wrap; }
-  .hero .val { font-size: 3.6em; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
+  .hero .val { font-size: clamp(2.4em, 6vw, 3.6em); font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
   .hero .unit { font-size: 1.5em; font-weight: 600; color: var(--ink-2); }
   .hero .tag { font-size: .9em; color: var(--ink-3); margin-left: .3em; }
   .fc { font-size: .95em; color: var(--ink-2); margin-top: -.3em; }
@@ -83,7 +92,7 @@
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: .6em; }
   .tile { background: var(--inset); border-radius: 10px; padding: .7em .75em; min-width: 0; }
   .tile span { display: block; font-size: .8em; color: var(--ink-2); margin-bottom: .2em; }
-  .tile b { font-size: 1.35em; font-weight: 700; white-space: nowrap; }
+  .tile b { font-size: clamp(1em, 1.25em, 1.35em); font-weight: 700; overflow-wrap: anywhere; }
   .tile b small { font-size: .62em; font-weight: 500; color: var(--ink-2); margin-left: .15em; }
   .tile i { display: block; font-style: normal; font-size: .76em; color: var(--ink-3); margin-top: .25em; line-height: 1.3; }
 
@@ -122,9 +131,38 @@
   }
   #tip b { color: var(--accent); }
 
+  /* ---------- Responsive ---------- */
+  /* Tablet / schmale Kachel */
+  @media (max-width: 720px) {
+    header { padding: 3.2em 3em .6em 1.1em; }
+    .toolbar, main { padding-left: 1.1em; padding-right: 1.1em; }
+    .hint { display: none; }
+  }
+  /* Handy / kleine Kachel */
   @media (max-width: 560px) {
-    .col-opt { display: none; }
-    h1 { font-size: 1.6em; }
+    body { font-size: 13px; }
+    header { padding: 3em 2.8em .5em 1em; gap: .3em .8em; }
+    h1 { font-size: 1.5em; }
+    .sub, .stand { display: none; }
+    .toolbar { padding: 0 1em .7em; }
+    main { padding: 0 1em 1em; gap: .8em; }
+    .card { padding: 1em; gap: .75em; border-radius: 14px; }
+    .col-opt, .lfd { display: none; }
+    .card-head { flex-wrap: wrap; }
+    .card-head .right { margin-left: 0; width: 100%; white-space: normal; font-size: .85em; }
+  }
+  /* sehr kleine Kachel: nur Kennzahl */
+  @media (max-width: 340px), (max-height: 330px) {
+    header { padding-top: 2.6em; }
+    h1 { font-size: 1.25em; }
+    .toolbar .icon-btn { display: none; }
+    .tiles, .chart-head, .chart, .fc, .meter .lbl, .note { display: none; }
+    .hero .val, .card.solo .hero .val { font-size: 2.4em; }
+  }
+  /* niedrige Kachel: Diagramm weglassen */
+  @media (max-height: 480px) {
+    .chart-head, .chart { display: none; }
+    .card.solo { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -191,14 +229,18 @@
   function render() {
     const yb = document.getElementById('years');
     yb.innerHTML = state.years.slice().reverse().map(y =>
-      `<button aria-pressed="${y === selectedYear}" data-y="${y}">${y === state.currentYear ? y + ' (lfd.)' : y}</button>`).join('');
+      `<button aria-pressed="${y === selectedYear}" data-y="${y}">${y}${y === state.currentYear ? '<span class="lfd"> (lfd.)</span>' : ''}</button>`).join('');
     yb.querySelectorAll('button').forEach(b => b.onclick = () => { selectedYear = +b.dataset.y; render(); });
+    const act = yb.querySelector('[aria-pressed="true"]');
+    if (act) yb.scrollLeft = act.offsetLeft - 8;
 
     const errors = state.sources.filter(s => s.error).length;
+    const implaus = state.sources.filter(s => checks(yearRow(s, selectedYear)).length > 0).length;
     document.getElementById('status').innerHTML =
       (state.pending > 0 ? `<span class="pill busy">Berechnung läuft · ${state.pending} Monate offen</span> ` : '') +
-      (errors ? `<span class="pill err">${errors} Messstelle${errors > 1 ? 'n' : ''} prüfen</span>`
-              : (state.pending > 0 ? '' : `<span class="pill">Alle Werte OK</span>`));
+      (errors ? `<span class="pill err">${errors} Messstelle${errors > 1 ? 'n' : ''} prüfen</span> ` : '') +
+      (implaus ? `<span class="pill warn">Werte unplausibel</span>` : '') +
+      (!errors && !implaus && !(state.pending > 0) ? `<span class="pill">Alle Werte OK</span>` : '');
     document.getElementById('stand').textContent = 'Stand ' + fmtDate(state.updated, true);
     document.getElementById('sub').textContent =
       state.sources.map(s => s.name).join(' · ') + ' · ' + selectedYear;
@@ -208,7 +250,8 @@
       main.innerHTML = '<div class="empty">Keine Energiearten konfiguriert.</div>';
       return;
     }
-    main.innerHTML = overview() + state.sources.map((s, i) => card(s, i)).join('');
+    const solo = state.sources.length === 1;
+    main.innerHTML = (solo ? '' : overview()) + state.sources.map((s, i) => card(s, i, solo)).join('');
     drawCharts();
     main.querySelectorAll('tbody tr[data-s]').forEach(tr => tr.onclick = () => {
       const el = main.querySelector(`.card[data-card="${tr.dataset.s}"]`);
@@ -236,7 +279,7 @@
         <td class="col-opt">${vu(powerParts(y.peak), 'span')}</td>
         <td class="h acc">${nf0.format(y.hours)}<span class="u">h/a</span></td>
         <td class="col-opt">${fc ? '≈ ' + nf0.format(y.forecastHours) + '<span class="u">h/a</span>' : '–'}</td>
-        <td>${nf1.format(pct)} %</td>
+        <td ${pct > 100 ? 'style="color:var(--err)"' : ''}>${pct > 100 ? '> 100 % ⚠' : nf1.format(pct) + ' %'}</td>
         <td class="col-opt">${sparkline(s)}</td>
       </tr>`;
     }).join('');
@@ -260,27 +303,42 @@
       ${last ? `<circle cx="${last[0]}" cy="${last[1]}" r="2.5" fill="${ACCENT}"/>` : ''}</svg>`;
   }
 
-  function card(s, idx) {
+  // Hinweise auf unplausible Ergebnisse (meist falscher Faktor)
+  function checks(y) {
+    const out = [];
+    if (!y || y.busy || y.energy <= 0) return out;
+    if (y.peak <= 0) out.push(['err', 'Keine gültige Bezugsleistung ermittelt – alle Intervalle lagen über der Plausibilitätsgrenze. Bitte Faktor Energie → kWh prüfen (Wh-Zähler: 0,001).']);
+    if (y.hours > y.hoursInYear) out.push(['err', `Unplausibel: ${nf0.format(y.hours)} h/a sind mehr als ${nf0.format(y.hoursInYear)} Jahresstunden. Bitte Faktor Energie → kWh prüfen (Wh-Zähler: 0,001).`]);
+    if (y.ignored > 20) out.push(['warn', `${nf0.format(y.ignored)} Intervalle über der Plausibilitätsgrenze ignoriert. Grenze oder Faktor prüfen – sonst ist die Bezugsleistung zu niedrig.`]);
+    return out;
+  }
+
+  function card(s, idx, solo) {
+    const cls = 'card' + (solo ? ' solo' : '');
     const head = `<div class="card-head"><h2><span class="sq" style="background:${s.color}"></span>${esc(s.name)}</h2><span class="right">${MODE_TXT[s.mode] || ''}${s.meters > 1 ? ' · Summe ' + s.meters + ' Zähler' : ''}</span></div>`;
-    if (s.error) return `<section class="card" data-card="${idx}">${head}<div class="err"><span aria-hidden="true">⚠</span>${esc(s.error)}</div></section>`;
+    if (s.error) return `<section class="${cls}" data-card="${idx}">${head}<div class="err"><span aria-hidden="true">⚠</span>${esc(s.error)}</div></section>`;
 
     const y = yearRow(s, selectedYear);
     if (y && y.busy) {
-      return `<section class="card" data-card="${idx}">${head}<div class="hero"><span class="val" style="color:var(--ink-3)">…</span></div>
-              <div class="busy-txt">${selectedYear} wird aus dem Archiv berechnet. Das kann beim ersten Mal einige Minuten dauern.</div>${chartBox(idx)}</section>`;
+      return `<section class="${cls}" data-card="${idx}">${head}<div class="col-a"><div class="hero"><span class="val" style="color:var(--ink-3)">…</span></div>
+              <div class="busy-txt">${selectedYear} wird aus dem Archiv berechnet. Das kann beim ersten Mal einige Minuten dauern.</div></div><div class="col-b">${chartBox(idx)}</div></section>`;
     }
     if (!y || y.energy <= 0) {
-      return `<section class="card" data-card="${idx}">${head}<div class="hero"><span class="val" style="color:var(--ink-3)">–</span></div>
-              <div class="fc">Keine Archivdaten für ${selectedYear}.</div>${chartBox(idx)}</section>`;
+      return `<section class="${cls}" data-card="${idx}">${head}<div class="col-a"><div class="hero"><span class="val" style="color:var(--ink-3)">–</span></div>
+              <div class="fc">Keine Archivdaten für ${selectedYear}.</div></div><div class="col-b">${chartBox(idx)}</div></section>`;
     }
     const running = !y.final;
     const showFc = running && state.showForecast && y.forecastHours != null;
     const pct = Math.min(1, y.hours / y.hoursInYear);
     const fcPct = showFc ? Math.min(1, y.forecastHours / y.hoursInYear) : 0;
-    const peakInfo = s.mode === 2 ? 'fester Wert' : (fmtDate(y.peakTime, true) + (y.resolution === '60 min' ? ' · Std.-Mittel' : '')) +
-      (y.ignored ? `<br><span style="color:var(--warn)">${y.ignored} Ausreißer ignoriert</span>` : '');
+    const peakInfo = s.mode === 2 ? 'fester Wert' : fmtDate(y.peakTime, true) +
+      (y.ignored && y.ignored <= 20 ? `<br><span style="color:var(--warn)">${y.ignored} Ausreißer ignoriert</span>` : '');
+    const warnings = checks(y).map(w => `<div class="warn-box ${w[0]}">⚠ ${w[1]}</div>`).join('');
+    const notes = (s.mode === 0 && y.resolution === '60 min')
+      ? '<div class="note">Spitze aus Stundenmitteln (keine 5-min-Daten im Archiv) – die echte 15-min-Spitze kann etwas höher liegen.</div>' : '';
 
-    return `<section class="card" data-card="${idx}">${head}
+    return `<section class="${cls}" data-card="${idx}">${head}
+      <div class="col-a">${warnings}
       <div class="hero"><span class="val">${nf0.format(y.hours)}</span><span class="unit">h/a</span>${running ? '<span class="tag">bisher</span>' : ''}</div>
       ${showFc ? `<div class="fc">Hochrechnung ${selectedYear}: <b>≈ ${nf0.format(y.forecastHours)} h/a</b></div>` : ''}
       <div class="meter" title="Anteil an ${nf0.format(y.hoursInYear)} Jahresstunden">
@@ -293,9 +351,10 @@
       <div class="tiles">
         <div class="tile"><span>Energie${running ? ' bisher' : ''}</span><b>${vu(energyParts(y.energy))}</b>${showFc ? `<i>Jahr ≈ ${txt(energyParts(y.forecastEnergy))}</i>` : '<i>Kalenderjahr</i>'}</div>
         <div class="tile"><span>Bezugsleistung</span><b>${vu(powerParts(y.peak))}</b><i>${peakInfo}</i></div>
-        <div class="tile"><span>Auslastung</span><b>${nf1.format(pct * 100)}<small>%</small></b><i>${showFc ? 'Jahr ≈ ' + nf1.format(fcPct * 100) + ' %' : 'von ' + nf0.format(y.hoursInYear) + ' h'}</i></div>
+        <div class="tile"><span>Auslastung</span><b>${y.hours > y.hoursInYear ? '> 100' : nf1.format(pct * 100)}<small>%</small></b><i>${showFc ? 'Jahr ≈ ' + nf1.format(fcPct * 100) + ' %' : 'von ' + nf0.format(y.hoursInYear) + ' h'}</i></div>
       </div>
-      ${chartBox(idx)}
+      ${notes}</div>
+      <div class="col-b">${chartBox(idx)}</div>
     </section>`;
   }
 
@@ -307,17 +366,19 @@
   function drawCharts() {
     document.querySelectorAll('.chart[data-s]').forEach(el => {
       const idx = +el.dataset.s;
-      el.innerHTML = chartSvg(state.sources[idx], idx, Math.max(140, el.clientWidth));
+      const solo = !!el.closest('.solo');
+      const H = solo && window.innerWidth > 720 && window.innerHeight > 560 ? 260 : (window.innerWidth > 560 ? 120 : 100);
+      el.innerHTML = chartSvg(state.sources[idx], idx, Math.max(140, el.clientWidth), H);
       el.querySelectorAll('.hit').forEach(bindBar);
     });
   }
 
   // Ein Balken je Jahr: gewähltes Jahr in Akzentfarbe, übrige dezent; Hochrechnung gestrichelt
-  function chartSvg(s, idx, W) {
+  function chartSvg(s, idx, W, H) {
     const rows = state.years.map(yr => { const r = yearRow(s, yr); return r && !r.busy ? r : { year: yr, hours: 0, energy: 0, busy: r && r.busy }; });
-    const H = 92, top = 16, base = 72;
+    const top = 16, base = H - 20;
     const max = Math.max(1, ...rows.map(r => Math.max(r.hours, (state.showForecast && r.forecastHours) || 0)));
-    const step = W / rows.length, bw = Math.min(34, step * 0.56);
+    const step = W / rows.length, bw = Math.min(H > 150 ? 64 : 34, step * 0.56);
     const shortYears = step < 40;
     let out = '';
     // dezente Hilfslinien

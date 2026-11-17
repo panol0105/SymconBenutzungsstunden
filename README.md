@@ -34,6 +34,12 @@ werden in der Kachel angezeigt und im Debug-Fenster mit Zeitpunkt protokolliert.
 - Zähler in Wh → 0,001 · in MWh → 1000 · Gas in m³ → Brennwert × Zustandszahl (z. B. 10,4)
 - Leistung in W → 0,001
 
+## Zeitraum
+Die Auswertung läuft fortlaufend ab dem **Startjahr** (Standard 2025) bis zum laufenden Jahr – jedes Jahr kommt automatisch ein Kalenderjahr (Jan–Dez) hinzu.
+
+## Nur lokal
+Das Modul macht zur Laufzeit keinerlei Online-Abfragen: Daten kommen ausschließlich aus dem lokalen Symcon-Archiv, die Kachel lädt keine externen Schriften, Skripte oder Bilder.
+
 ## Ergebnis
 - Kachel: Wert je Energieart, Auslastung bezogen auf 8.760 (8.784) h, Energie, Leistungsspitze mit Zeitpunkt, Jahresvergleich, Hochrechnung für das laufende Jahr (ab 14 Tagen Daten).
 - Variablen: Benutzungsstunden Vorjahr und laufendes Jahr (bisher) je Energieart, z. B. für Meldungen oder Ereignisse.
