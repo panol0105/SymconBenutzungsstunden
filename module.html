@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --ink: rgb(84, 87, 90);            /* Schriftfarbe */
+    --ink-2: rgba(84, 87, 90, 0.78);
+    --ink-3: rgba(84, 87, 90, 0.58);
+    --bg: rgb(240, 240, 240);          /* Hintergrund */
+    --card: #ffffff;
+    --inset: rgb(240, 243, 247);       /* Innenkacheln */
+    --line: rgba(84, 87, 90, 0.12);
+    --accent: rgb(0, 117, 187);        /* Effekte */
+    --accent-soft: rgba(0, 117, 187, 0.10);
+    --accent-mid: rgba(0, 117, 187, 0.30);
+    --ok: #1a9f45; --warn: #e07b00; --err: #d93a3a;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: Poppins, "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    background: var(--bg); color: var(--ink);
+    font-size: clamp(11px, 1.5vw, 14px);
+    display: flex; flex-direction: column; overflow: hidden;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Kopfzeile */
+  header { display: flex; align-items: center; gap: .6em 1em; padding: 1.1em 1.4em .8em; flex-wrap: wrap; }
+  .title { display: flex; align-items: baseline; gap: .9em; flex: 1 1 auto; flex-wrap: wrap; min-width: 0; }
+  h1 { font-size: 2em; font-weight: 700; margin: 0; letter-spacing: -0.01em; white-space: nowrap; }
+  .sub { color: var(--ink-2); font-size: 1.05em; }
+  .meta { display: flex; align-items: center; gap: .6em; flex-wrap: wrap; }
+  .stand { color: var(--ink-3); font-size: .9em; margin-right: .3em; }
+  .pill { display: inline-flex; align-items: center; gap: .35em; font-size: .88em; font-weight: 500; padding: .35em .8em; border-radius: 999px; background: rgba(26,159,69,.10); color: var(--ok); white-space: nowrap; }
+  .pill.warn { background: rgba(224,123,0,.10); color: var(--warn); }
+  .pill.err { background: rgba(217,58,58,.10); color: var(--err); }
+  .pill.busy { background: var(--accent-soft); color: var(--accent); }
+  .pill.busy::before { animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .busy-txt { color: var(--accent); font-size: .95em; }
+  .pill::before { content: ""; width: .45em; height: .45em; border-radius: 50%; background: currentColor; }
+
+  .toolbar { display: flex; align-items: center; gap: .6em; padding: 0 1.4em .9em; flex-wrap: wrap; }
+  .years { display: flex; gap: 2px; background: var(--card); border-radius: 999px; padding: 3px; box-shadow: 0 1px 2px rgba(0,0,0,.04); overflow-x: auto; max-width: 100%; }
+  .years button {
+    font: inherit; font-size: .9em; color: var(--ink-2); background: none; border: 0; border-radius: 999px;
+    padding: .35em .9em; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s;
+  }
+  .years button:hover { color: var(--accent); }
+  .years button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .icon-btn { font: inherit; background: var(--card); border: 0; color: var(--ink-2); border-radius: 50%; width: 2.2em; height: 2.2em; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: color .15s; }
+  .icon-btn:hover { color: var(--accent); }
+  .hint { color: var(--ink-3); font-size: .85em; margin-left: auto; }
+
+  /* Raster */
+  main { flex: 1 1 auto; overflow-y: auto; padding: 0 1.4em 1.4em; display: grid; gap: 1.1em; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); align-content: start; }
+  .card { background: var(--card); border-radius: var(--radius); padding: 1.15em 1.3em 1.2em; display: flex; flex-direction: column; gap: .9em; min-width: 0; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .card.wide { grid-column: 1 / -1; }
+  .card-head { display: flex; align-items: baseline; gap: .6em; }
+  .card-head h2 { font-size: 1.08em; font-weight: 600; margin: 0; display: flex; align-items: center; gap: .5em; min-width: 0; }
+  .card-head .right { margin-left: auto; color: var(--ink-2); font-size: .92em; white-space: nowrap; }
+  .sq { width: .7em; height: .7em; border-radius: 3px; flex: none; }
+
+  /* Hero */
+  .hero { display: flex; align-items: baseline; gap: .35em; flex-wrap: wrap; }
+  .hero .val { font-size: 3.6em; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
+  .hero .unit { font-size: 1.5em; font-weight: 600; color: var(--ink-2); }
+  .hero .tag { font-size: .9em; color: var(--ink-3); margin-left: .3em; }
+  .fc { font-size: .95em; color: var(--ink-2); margin-top: -.3em; }
+  .fc b { color: var(--accent); font-weight: 600; }
+
+  /* Auslastungsbalken */
+  .meter .bar { position: relative; height: 12px; border-radius: 6px; background: var(--inset); overflow: hidden; }
+  .meter .fill { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: var(--accent); }
+  .meter .fcfill { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: var(--accent-mid); }
+  .meter .lbl { display: flex; justify-content: space-between; color: var(--ink-3); font-size: .82em; margin-top: .35em; }
+
+  /* Kennwerte als Innenkacheln */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: .6em; }
+  .tile { background: var(--inset); border-radius: 10px; padding: .7em .75em; min-width: 0; }
+  .tile span { display: block; font-size: .8em; color: var(--ink-2); margin-bottom: .2em; }
+  .tile b { font-size: 1.35em; font-weight: 700; white-space: nowrap; }
+  .tile b small { font-size: .62em; font-weight: 500; color: var(--ink-2); margin-left: .15em; }
+  .tile i { display: block; font-style: normal; font-size: .76em; color: var(--ink-3); margin-top: .25em; line-height: 1.3; }
+
+  /* Jahresvergleich */
+  .chart-head { display: flex; justify-content: space-between; color: var(--ink-3); font-size: .82em; border-top: 1px solid var(--line); padding-top: .8em; }
+  .chart { position: relative; }
+  .chart svg { display: block; overflow: visible; }
+  .chart .hit { cursor: pointer; }
+  .chart text { fill: var(--ink-3); font-size: 11px; font-family: inherit; }
+
+  /* Übersichtstabelle */
+  table { width: 100%; border-collapse: collapse; font-size: .95em; }
+  thead th { background: var(--inset); color: var(--ink); font-weight: 500; font-size: .88em; text-align: right; padding: .6em .7em; white-space: nowrap; }
+  thead th:first-child { text-align: left; border-radius: 8px 0 0 8px; }
+  thead th:last-child { border-radius: 0 8px 8px 0; }
+  tbody td { padding: .6em .7em; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  tbody td:first-child { text-align: left; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr { cursor: default; transition: background .12s; }
+  tbody tr:hover { background: var(--accent-soft); }
+  td .u { font-size: .75em; color: var(--ink-3); margin-left: .2em; }
+  td.h { font-weight: 700; }
+  td.h.acc { color: var(--accent); }
+  .tbl-wrap { overflow-x: auto; }
+  .spark { display: inline-block; vertical-align: middle; }
+  .name-cell { display: inline-flex; align-items: center; gap: .55em; }
+
+  .err { color: var(--err); font-size: .92em; display: flex; gap: .4em; }
+  .empty { color: var(--ink-3); padding: 2em; text-align: center; grid-column: 1 / -1; }
+
+  #tip {
+    position: fixed; pointer-events: none; background: #fff; color: var(--ink);
+    border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.10);
+    padding: .45em .7em; border-radius: 8px; font-size: .85em; line-height: 1.45; white-space: nowrap;
+    opacity: 0; transition: opacity .1s; z-index: 10;
+  }
+  #tip b { color: var(--accent); }
+
+  @media (max-width: 560px) {
+    .col-opt { display: none; }
+    h1 { font-size: 1.6em; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="title">
+      <h1>Benutzungsstunden</h1>
+      <span class="sub" id="sub">Gebäudeenergie · h/a</span>
+    </div>
+    <div class="meta">
+      <span class="stand" id="stand"></span>
+      <span id="status"></span>
+    </div>
+  </header>
+  <div class="toolbar">
+    <div class="years" id="years" role="group" aria-label="Jahr wählen"></div>
+    <button class="icon-btn" id="refresh" title="Jetzt neu berechnen" aria-label="Neu berechnen">↻</button>
+    <span class="hint">h/a = Jahresenergie ÷ Bezugsleistung</span>
+  </div>
+  <main id="cards"><div class="empty">Warte auf Daten …</div></main>
+  <div id="tip"></div>
+
+<script>
+  let state = null;
+  let selectedYear = null;
+
+  const ACCENT = 'rgb(0, 117, 187)';
+  const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+  const nf1 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+  const nf2 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  const MODE_TXT = ['15-min-Spitze', 'Leistungsmessung', 'Nennleistung'];
+
+  // Wert + Einheit getrennt, damit die Einheit kleiner gesetzt werden kann
+  function energyParts(kwh) {
+    if (kwh >= 1e6) return [nf2.format(kwh / 1e6), 'GWh'];
+    if (kwh >= 1e4) return [nf2.format(kwh / 1e3), 'MWh'];
+    return [nf0.format(kwh), 'kWh'];
+  }
+  function powerParts(kw) {
+    if (kw >= 1e4) return [nf2.format(kw / 1e3), 'MW'];
+    return [kw >= 100 ? nf0.format(kw) : nf1.format(kw), 'kW'];
+  }
+  const vu = (p, cls) => `${p[0]}<${cls || 'small'}${cls === 'span' ? ' class="u"' : ''}>${p[1]}</${cls || 'small'}>`;
+  const txt = p => p[0] + ' ' + p[1];
+
+  function fmtDate(ts, withTime) {
+    if (!ts) return '';
+    const o = { day: '2-digit', month: '2-digit', year: 'numeric' };
+    if (withTime) { o.hour = '2-digit'; o.minute = '2-digit'; }
+    return new Date(ts * 1000).toLocaleString('de-DE', o);
+  }
+  function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+  // Wird von Symcon bei UpdateVisualizationValue() und beim Laden aufgerufen
+  function handleMessage(data) {
+    try { state = typeof data === 'string' ? JSON.parse(data) : data; } catch (e) { return; }
+    if (!state || !state.sources) return;
+    if (!selectedYear || state.years.indexOf(selectedYear) < 0) selectedYear = state.currentYear;
+    render();
+  }
+
+  function yearRow(s, yr) { return s.years.find(r => r.year === yr); }
+
+  function render() {
+    const yb = document.getElementById('years');
+    yb.innerHTML = state.years.slice().reverse().map(y =>
+      `<button aria-pressed="${y === selectedYear}" data-y="${y}">${y === state.currentYear ? y + ' (lfd.)' : y}</button>`).join('');
+    yb.querySelectorAll('button').forEach(b => b.onclick = () => { selectedYear = +b.dataset.y; render(); });
+
+    const errors = state.sources.filter(s => s.error).length;
+    document.getElementById('status').innerHTML =
+      (state.pending > 0 ? `<span class="pill busy">Berechnung läuft · ${state.pending} Monate offen</span> ` : '') +
+      (errors ? `<span class="pill err">${errors} Messstelle${errors > 1 ? 'n' : ''} prüfen</span>`
+              : (state.pending > 0 ? '' : `<span class="pill">Alle Werte OK</span>`));
+    document.getElementById('stand').textContent = 'Stand ' + fmtDate(state.updated, true);
+    document.getElementById('sub').textContent =
+      state.sources.map(s => s.name).join(' · ') + ' · ' + selectedYear;
+
+    const main = document.getElementById('cards');
+    if (state.sources.length === 0) {
+      main.innerHTML = '<div class="empty">Keine Energiearten konfiguriert.</div>';
+      return;
+    }
+    main.innerHTML = overview() + state.sources.map((s, i) => card(s, i)).join('');
+    drawCharts();
+    main.querySelectorAll('tbody tr[data-s]').forEach(tr => tr.onclick = () => {
+      const el = main.querySelector(`.card[data-card="${tr.dataset.s}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }
+
+  // Übersichtstabelle im Stil „Energieverteilung“
+  function overview() {
+    const running = selectedYear === state.currentYear;
+    const rows = state.sources.map((s, i) => {
+      const y = yearRow(s, selectedYear);
+      const name = `<span class="name-cell"><span class="sq" style="background:${s.color}"></span>${esc(s.name)}</span>`;
+      if (y && y.busy) {
+        return `<tr data-s="${i}"><td>${name}</td><td colspan="5" class="busy-txt">wird berechnet …</td><td class="col-opt"></td></tr>`;
+      }
+      if (s.error || !y || y.energy <= 0) {
+        return `<tr data-s="${i}"><td>${name}</td><td colspan="5" style="color:var(--ink-3)">${s.error ? '⚠ ' + esc(s.error) : 'keine Daten'}</td><td class="col-opt"></td></tr>`;
+      }
+      const pct = y.hours / y.hoursInYear * 100;
+      const fc = running && state.showForecast && y.forecastHours != null;
+      return `<tr data-s="${i}">
+        <td>${name}</td>
+        <td>${vu(energyParts(y.energy), 'span')}</td>
+        <td class="col-opt">${vu(powerParts(y.peak), 'span')}</td>
+        <td class="h acc">${nf0.format(y.hours)}<span class="u">h/a</span></td>
+        <td class="col-opt">${fc ? '≈ ' + nf0.format(y.forecastHours) + '<span class="u">h/a</span>' : '–'}</td>
+        <td>${nf1.format(pct)} %</td>
+        <td class="col-opt">${sparkline(s)}</td>
+      </tr>`;
+    }).join('');
+    return `<section class="card wide">
+      <div class="card-head"><h2>Übersicht ${selectedYear}${running ? ' (bisher)' : ''}</h2><span class="right">Benutzungsstunden je Energieart</span></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Energieart</th><th>Energie</th><th class="col-opt">Bezugsleistung</th><th>Benutzungsstunden</th><th class="col-opt">Hochrechnung</th><th>Auslastung</th><th class="col-opt">Verlauf</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </section>`;
+  }
+
+  function sparkline(s) {
+    const pts = state.years.map(yr => { const r = yearRow(s, yr); if (r && r.busy) return 0; return r && r.final !== false ? r.hours : (r && r.forecastHours) || (r && r.hours) || 0; });
+    const W = 80, H = 22, max = Math.max(1, ...pts), min = 0, span = max;
+    const xy = pts.map((v, i) => [pts.length > 1 ? i * W / (pts.length - 1) : W / 2, v > 0 ? H - 3 - (v - min) / span * (H - 6) : null]);
+    const d = xy.filter(p => p[1] !== null).map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+    const last = xy.filter(p => p[1] !== null).pop();
+    return `<svg class="spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
+      <path d="${d}" fill="none" stroke="${ACCENT}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+      ${last ? `<circle cx="${last[0]}" cy="${last[1]}" r="2.5" fill="${ACCENT}"/>` : ''}</svg>`;
+  }
+
+  function card(s, idx) {
+    const head = `<div class="card-head"><h2><span class="sq" style="background:${s.color}"></span>${esc(s.name)}</h2><span class="right">${MODE_TXT[s.mode] || ''}${s.meters > 1 ? ' · Summe ' + s.meters + ' Zähler' : ''}</span></div>`;
+    if (s.error) return `<section class="card" data-card="${idx}">${head}<div class="err"><span aria-hidden="true">⚠</span>${esc(s.error)}</div></section>`;
+
+    const y = yearRow(s, selectedYear);
+    if (y && y.busy) {
+      return `<section class="card" data-card="${idx}">${head}<div class="hero"><span class="val" style="color:var(--ink-3)">…</span></div>
+              <div class="busy-txt">${selectedYear} wird aus dem Archiv berechnet. Das kann beim ersten Mal einige Minuten dauern.</div>${chartBox(idx)}</section>`;
+    }
+    if (!y || y.energy <= 0) {
+      return `<section class="card" data-card="${idx}">${head}<div class="hero"><span class="val" style="color:var(--ink-3)">–</span></div>
+              <div class="fc">Keine Archivdaten für ${selectedYear}.</div>${chartBox(idx)}</section>`;
+    }
+    const running = !y.final;
+    const showFc = running && state.showForecast && y.forecastHours != null;
+    const pct = Math.min(1, y.hours / y.hoursInYear);
+    const fcPct = showFc ? Math.min(1, y.forecastHours / y.hoursInYear) : 0;
+    const peakInfo = s.mode === 2 ? 'fester Wert' : (fmtDate(y.peakTime, true) + (y.resolution === '60 min' ? ' · Std.-Mittel' : '')) +
+      (y.ignored ? `<br><span style="color:var(--warn)">${y.ignored} Ausreißer ignoriert</span>` : '');
+
+    return `<section class="card" data-card="${idx}">${head}
+      <div class="hero"><span class="val">${nf0.format(y.hours)}</span><span class="unit">h/a</span>${running ? '<span class="tag">bisher</span>' : ''}</div>
+      ${showFc ? `<div class="fc">Hochrechnung ${selectedYear}: <b>≈ ${nf0.format(y.forecastHours)} h/a</b></div>` : ''}
+      <div class="meter" title="Anteil an ${nf0.format(y.hoursInYear)} Jahresstunden">
+        <div class="bar">
+          ${showFc ? `<div class="fcfill" style="width:${fcPct * 100}%"></div>` : ''}
+          <div class="fill" style="width:${pct * 100}%"></div>
+        </div>
+        <div class="lbl"><span>0</span><span>${nf0.format(y.hoursInYear)} h</span></div>
+      </div>
+      <div class="tiles">
+        <div class="tile"><span>Energie${running ? ' bisher' : ''}</span><b>${vu(energyParts(y.energy))}</b>${showFc ? `<i>Jahr ≈ ${txt(energyParts(y.forecastEnergy))}</i>` : '<i>Kalenderjahr</i>'}</div>
+        <div class="tile"><span>Bezugsleistung</span><b>${vu(powerParts(y.peak))}</b><i>${peakInfo}</i></div>
+        <div class="tile"><span>Auslastung</span><b>${nf1.format(pct * 100)}<small>%</small></b><i>${showFc ? 'Jahr ≈ ' + nf1.format(fcPct * 100) + ' %' : 'von ' + nf0.format(y.hoursInYear) + ' h'}</i></div>
+      </div>
+      ${chartBox(idx)}
+    </section>`;
+  }
+
+  function chartBox(idx) {
+    return state.years.length < 2 ? '' :
+      `<div class="chart-head"><span>Jahresvergleich</span><span>h/a</span></div><div class="chart" data-s="${idx}"></div>`;
+  }
+
+  function drawCharts() {
+    document.querySelectorAll('.chart[data-s]').forEach(el => {
+      const idx = +el.dataset.s;
+      el.innerHTML = chartSvg(state.sources[idx], idx, Math.max(140, el.clientWidth));
+      el.querySelectorAll('.hit').forEach(bindBar);
+    });
+  }
+
+  // Ein Balken je Jahr: gewähltes Jahr in Akzentfarbe, übrige dezent; Hochrechnung gestrichelt
+  function chartSvg(s, idx, W) {
+    const rows = state.years.map(yr => { const r = yearRow(s, yr); return r && !r.busy ? r : { year: yr, hours: 0, energy: 0, busy: r && r.busy }; });
+    const H = 92, top = 16, base = 72;
+    const max = Math.max(1, ...rows.map(r => Math.max(r.hours, (state.showForecast && r.forecastHours) || 0)));
+    const step = W / rows.length, bw = Math.min(34, step * 0.56);
+    const shortYears = step < 40;
+    let out = '';
+    // dezente Hilfslinien
+    [0.5, 1].forEach(f => {
+      const yy = base - f * (base - top);
+      out += `<line x1="0" x2="${W}" y1="${yy}" y2="${yy}" stroke="rgba(84,87,90,0.10)" stroke-dasharray="3 3"/>`;
+    });
+    out += `<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="rgba(84,87,90,0.25)"/>`;
+    rows.forEach((r, i) => {
+      const cx = step * i + step / 2, x = cx - bw / 2;
+      const sel = r.year === selectedYear;
+      const fill = sel ? ACCENT : 'rgba(0,117,187,0.22)';
+      if (state.showForecast && r.forecastHours && !r.final) {
+        const hf = (r.forecastHours / max) * (base - top);
+        out += `<path d="${barPath(x, base, bw, hf)}" fill="rgba(0,117,187,0.06)" stroke="${ACCENT}" stroke-width="1.2" stroke-dasharray="3 2" opacity="${sel ? 1 : 0.5}"/>`;
+      }
+      const h = (r.hours / max) * (base - top);
+      if (h > 0) out += `<path d="${barPath(x, base, bw, h)}" fill="${fill}"/>`;
+      if (sel && r.hours > 0) out += `<text x="${cx}" y="${base - Math.max(h, r.forecastHours && state.showForecast && !r.final ? (r.forecastHours / max) * (base - top) : 0) - 4}" text-anchor="middle" style="fill:var(--ink);font-weight:600">${nf0.format(r.hours)}</text>`;
+      out += `<rect class="hit" data-s="${idx}" data-y="${r.year}" x="${cx - step / 2}" y="0" width="${step}" height="${H}" fill="transparent"/>`;
+      out += `<text x="${cx}" y="${H - 4}" text-anchor="middle" ${sel ? 'style="fill:' + ACCENT + ';font-weight:600"' : ''}>${shortYears ? "'" + String(r.year).slice(-2) : r.year}</text>`;
+    });
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Benutzungsstunden ${esc(s.name)} im Jahresvergleich">${out}</svg>`;
+  }
+
+  function barPath(x, base, w, h) {
+    const r = Math.min(4, w / 2, h);
+    const t = base - h;
+    return `M${x},${base} V${t + r} Q${x},${t} ${x + r},${t} H${x + w - r} Q${x + w},${t} ${x + w},${t + r} V${base} Z`;
+  }
+
+  const tip = document.getElementById('tip');
+  function bindBar(el) {
+    const s = state.sources[+el.dataset.s];
+    const yr = +el.dataset.y;
+    const r = yearRow(s, yr);
+    const html = () => {
+      if (r && r.busy) return `${yr}<br>wird berechnet …`;
+      if (!r || r.energy <= 0) return `${yr}<br>keine Daten`;
+      let t = `${yr}${r.final ? '' : ' (bisher)'}<br><b>${nf0.format(r.hours)} h/a</b> · ${txt(energyParts(r.energy))} · ${txt(powerParts(r.peak))}`;
+      if (!r.final && state.showForecast && r.forecastHours) t += `<br>Hochrechnung ≈ ${nf0.format(r.forecastHours)} h/a`;
+      return t;
+    };
+    el.addEventListener('mousemove', e => {
+      tip.innerHTML = html();
+      const tw = tip.offsetWidth, th = tip.offsetHeight;
+      let x = e.clientX + 12, y = e.clientY - th - 8;
+      if (x + tw > window.innerWidth - 4) x = e.clientX - tw - 12;
+      if (y < 4) y = e.clientY + 14;
+      tip.style.left = x + 'px'; tip.style.top = y + 'px'; tip.style.opacity = 1;
+    });
+    el.addEventListener('mouseleave', () => tip.style.opacity = 0);
+    el.addEventListener('click', () => { tip.style.opacity = 0; selectedYear = yr; render(); });
+  }
+
+  document.getElementById('refresh').onclick = () => {
+    if (typeof requestAction === 'function') requestAction('Refresh', true);
+  };
+  let rt;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => state && drawCharts(), 120); });
+</script>
+</body>
+</html>
