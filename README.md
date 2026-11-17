@@ -1,0 +1,44 @@
+# Benutzungsstunden (IP-Symcon)
+
+Berechnet die **Benutzungsstunden pro Jahr** je Energieart des Gebäudes und zeigt sie als Kachel in der Tile-Visualisierung.
+
+    Benutzungsstunden [h/a] = Jahresenergie [kWh] / Bezugsleistung [kW]
+
+## Installation
+1. Ordner `SymconBenutzungsstunden` nach `…/symcon/modules/` kopieren (oder als Git-Repo über die Modulverwaltung einbinden).
+2. Instanz **Benutzungsstunden** anlegen.
+3. Energiearten in der Liste eintragen und übernehmen.
+4. In der Tile-Visu die Instanz als Kachel hinzufügen.
+
+## Voraussetzungen
+- Energievariable: im Archiv geloggt, Aggregationstyp **Zähler**.
+- Leistungsvariable (nur bei Bezugsleistung „Leistungsvariable“): geloggt, Aggregationstyp **Standard**.
+
+## Mehrere Zähler (z. B. 5 Trafos)
+Pro Energieart können bis zu 5 Zähler eingetragen werden (Zähler 1–5). Das Modul addiert die Verbräuche je Viertelstunde;
+die Bezugsleistung ist damit die **zeitgleiche** Summenspitze, nicht die Summe der Einzelspitzen. Alle Zähler einer Zeile
+brauchen dieselbe Einheit (Faktor gilt für alle) und müssen als „Zähler“ geloggt sein.
+
+**Plausibilitätsgrenze [kW]:** Viertelstunden mit höherer Summenleistung werden bei der Spitze ignoriert (z. B. Nachholsprung
+nach einem Zählerausfall). Empfehlung: etwas über der Summe der Trafo-Nennleistungen. 0 = aus. Ignorierte Intervalle
+werden in der Kachel angezeigt und im Debug-Fenster mit Zeitpunkt protokolliert.
+
+## Bezugsleistung
+| Option | Berechnung |
+|---|---|
+| 15-min-Maximum aus Zähler | höchster 15-min-Mittelwert aus den 5-min-Aggregaten des Zählers (wie die RLM-Abrechnung). Gibt es keine 5-min-Daten, wird mit Stundenmitteln gerechnet. |
+| Maximum der Leistungsvariable | höchster geloggter Leistungswert im Jahr |
+| Nennleistung | fester Wert, z. B. Kessel- oder Anschlussleistung (→ Vollbenutzungsstunden) |
+
+## Faktoren
+- Zähler in Wh → 0,001 · in MWh → 1000 · Gas in m³ → Brennwert × Zustandszahl (z. B. 10,4)
+- Leistung in W → 0,001
+
+## Ergebnis
+- Kachel: Wert je Energieart, Auslastung bezogen auf 8.760 (8.784) h, Energie, Leistungsspitze mit Zeitpunkt, Jahresvergleich, Hochrechnung für das laufende Jahr (ab 14 Tagen Daten).
+- Variablen: Benutzungsstunden Vorjahr und laufendes Jahr (bisher) je Energieart, z. B. für Meldungen oder Ereignisse.
+- Abgeschlossene Jahre werden zwischengespeichert. Nach Archiv-Korrekturen: **Alle Jahre neu berechnen**.
+
+## PHP-Funktionen
+- `BNS_Update(int $InstanzID)` – neu berechnen (laufendes Jahr)
+- `BNS_RecalculateAll(int $InstanzID)` – Cache löschen, alle Jahre neu berechnen

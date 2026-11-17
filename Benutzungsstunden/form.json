@@ -1,0 +1,243 @@
+{
+    "elements": [
+        {
+            "type": "Label",
+            "caption": "Benutzungsstunden [h/a] = Jahresenergie [kWh] ÷ Bezugsleistung [kW]. Pro Energieart können bis zu 5 Zähler eingetragen werden (z. B. 5 Trafos) – das Modul addiert sie je Viertelstunde. Alle Zähler einer Zeile brauchen dieselbe Einheit und müssen im Archiv mit Aggregationstyp „Zähler“ geloggt sein."
+        },
+        {
+            "type": "List",
+            "name": "Sources",
+            "caption": "Energiearten / Messstellen",
+            "rowCount": 6,
+            "add": true,
+            "delete": true,
+            "changeOrder": true,
+            "columns": [
+                {
+                    "caption": "Name",
+                    "name": "Name",
+                    "width": "auto",
+                    "add": "Strom",
+                    "edit": {
+                        "type": "ValidationTextBox"
+                    }
+                },
+                {
+                    "caption": "Zähler 1",
+                    "name": "EnergyVariable",
+                    "width": "170px",
+                    "add": 0,
+                    "edit": {
+                        "type": "SelectVariable"
+                    }
+                },
+                {
+                    "caption": "Zähler 2",
+                    "name": "EnergyVariable2",
+                    "width": "170px",
+                    "add": 0,
+                    "edit": {
+                        "type": "SelectVariable"
+                    }
+                },
+                {
+                    "caption": "Zähler 3",
+                    "name": "EnergyVariable3",
+                    "width": "170px",
+                    "add": 0,
+                    "edit": {
+                        "type": "SelectVariable"
+                    }
+                },
+                {
+                    "caption": "Zähler 4",
+                    "name": "EnergyVariable4",
+                    "width": "170px",
+                    "add": 0,
+                    "edit": {
+                        "type": "SelectVariable"
+                    }
+                },
+                {
+                    "caption": "Zähler 5",
+                    "name": "EnergyVariable5",
+                    "width": "170px",
+                    "add": 0,
+                    "edit": {
+                        "type": "SelectVariable"
+                    }
+                },
+                {
+                    "caption": "Faktor Energie → kWh",
+                    "name": "EnergyFactor",
+                    "width": "150px",
+                    "add": 1,
+                    "edit": {
+                        "type": "NumberSpinner",
+                        "digits": 4
+                    }
+                },
+                {
+                    "caption": "Bezugsleistung",
+                    "name": "PeakMode",
+                    "width": "230px",
+                    "add": 0,
+                    "edit": {
+                        "type": "Select",
+                        "options": [
+                            {
+                                "caption": "15-min-Maximum aus Zähler",
+                                "value": 0
+                            },
+                            {
+                                "caption": "Maximum der Leistungsvariable",
+                                "value": 1
+                            },
+                            {
+                                "caption": "Nennleistung (fest)",
+                                "value": 2
+                            }
+                        ]
+                    }
+                },
+                {
+                    "caption": "Leistungsvariable (Summe, optional)",
+                    "name": "PowerVariable",
+                    "width": "220px",
+                    "add": 0,
+                    "edit": {
+                        "type": "SelectVariable"
+                    }
+                },
+                {
+                    "caption": "Faktor Leistung → kW",
+                    "name": "PowerFactor",
+                    "width": "150px",
+                    "add": 1,
+                    "edit": {
+                        "type": "NumberSpinner",
+                        "digits": 4
+                    }
+                },
+                {
+                    "caption": "Nennleistung [kW]",
+                    "name": "NominalPower",
+                    "width": "130px",
+                    "add": 0,
+                    "edit": {
+                        "type": "NumberSpinner",
+                        "digits": 1,
+                        "suffix": " kW"
+                    }
+                },
+                {
+                    "caption": "Plausibilitätsgrenze [kW]",
+                    "name": "PeakLimit",
+                    "width": "170px",
+                    "add": 0,
+                    "edit": {
+                        "type": "NumberSpinner",
+                        "digits": 0,
+                        "suffix": " kW"
+                    }
+                },
+                {
+                    "caption": "Farbe",
+                    "name": "Color",
+                    "width": "90px",
+                    "add": -1,
+                    "edit": {
+                        "type": "SelectColor",
+                        "allowTransparent": true
+                    }
+                }
+            ]
+        },
+        {
+            "type": "RowLayout",
+            "items": [
+                {
+                    "type": "NumberSpinner",
+                    "name": "Years",
+                    "caption": "Anzahl Jahre",
+                    "minimum": 1,
+                    "maximum": 20
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "UpdateInterval",
+                    "caption": "Aktualisierung",
+                    "suffix": " min",
+                    "minimum": 0
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "ShowForecast",
+                    "caption": "Hochrechnung für laufendes Jahr anzeigen"
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Hinweise zu den Faktoren",
+            "items": [
+                {
+                    "type": "Label",
+                    "caption": "Zähler in Wh → Faktor 0,001 · Zähler in MWh → Faktor 1000 · Gaszähler in m³ → Faktor ≈ Brennwert × Zustandszahl (z. B. 10,4)"
+                },
+                {
+                    "type": "Label",
+                    "caption": "Leistung in W → Faktor 0,001 · Leistung bereits in kW → Faktor 1"
+                },
+                {
+                    "type": "Label",
+                    "caption": "„15-min-Maximum aus Zähler“ entspricht der abrechnungsrelevanten Leistungsspitze (RLM) und braucht keine Leistungsvariable."
+                },
+                {
+                    "type": "Label",
+                    "caption": "Plausibilitätsgrenze: Viertelstunden mit höherer Summenleistung (z. B. Nachholsprung nach Zählerausfall) werden bei der Spitze ignoriert. Sinnvoll: etwas über der Summe der Trafo-Nennleistungen. 0 = aus."
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "type": "RowLayout",
+            "items": [
+                {
+                    "type": "Button",
+                    "caption": "Jetzt aktualisieren",
+                    "onClick": "BNS_Update($id);"
+                },
+                {
+                    "type": "Button",
+                    "caption": "Alle Jahre neu berechnen",
+                    "onClick": "BNS_RecalculateAll($id);",
+                    "confirm": "Alle Vorjahre werden neu aus dem Archiv berechnet. Das kann bei vielen Jahren etwas dauern. Fortfahren?"
+                }
+            ]
+        }
+    ],
+    "status": [
+        {
+            "code": 102,
+            "icon": "active",
+            "caption": "Aktiv"
+        },
+        {
+            "code": 104,
+            "icon": "inactive",
+            "caption": "Keine Energiearten konfiguriert"
+        },
+        {
+            "code": 201,
+            "icon": "error",
+            "caption": "Kein Archiv gefunden"
+        },
+        {
+            "code": 202,
+            "icon": "error",
+            "caption": "Mindestens eine Messstelle ist fehlerhaft konfiguriert (siehe Meldungen)"
+        }
+    ]
+}

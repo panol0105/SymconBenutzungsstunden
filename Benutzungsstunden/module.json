@@ -1,0 +1,16 @@
+{
+    "id": "{11D997DC-E54C-4F05-91C1-D95C0547A851}",
+    "name": "Benutzungsstunden",
+    "type": 3,
+    "vendor": "",
+    "aliases": [
+        "Benutzungsstunden",
+        "Vollbenutzungsstunden",
+        "Volllaststunden"
+    ],
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "BNS",
+    "url": ""
+}
