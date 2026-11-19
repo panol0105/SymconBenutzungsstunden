@@ -90,7 +90,7 @@
                                 "value": 0
                             },
                             {
-                                "caption": "Maximum der Leistungsvariable",
+                                "caption": "Maximum Summe Leistung 1–5 (1-min-Mittel)",
                                 "value": 1
                             },
                             {
@@ -101,9 +101,45 @@
                     }
                 },
                 {
-                    "caption": "Leistungsvariable (Summe, optional)",
+                    "caption": "Leistung 1",
                     "name": "PowerVariable",
-                    "width": "220px",
+                    "width": "170px",
+                    "add": 0,
+                    "edit": {
+                        "type": "SelectVariable"
+                    }
+                },
+                {
+                    "caption": "Leistung 2",
+                    "name": "PowerVariable2",
+                    "width": "170px",
+                    "add": 0,
+                    "edit": {
+                        "type": "SelectVariable"
+                    }
+                },
+                {
+                    "caption": "Leistung 3",
+                    "name": "PowerVariable3",
+                    "width": "170px",
+                    "add": 0,
+                    "edit": {
+                        "type": "SelectVariable"
+                    }
+                },
+                {
+                    "caption": "Leistung 4",
+                    "name": "PowerVariable4",
+                    "width": "170px",
+                    "add": 0,
+                    "edit": {
+                        "type": "SelectVariable"
+                    }
+                },
+                {
+                    "caption": "Leistung 5",
+                    "name": "PowerVariable5",
+                    "width": "170px",
                     "add": 0,
                     "edit": {
                         "type": "SelectVariable"

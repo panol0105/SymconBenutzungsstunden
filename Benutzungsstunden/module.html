@@ -62,13 +62,20 @@
   .card.wide { grid-column: 1 / -1; }
   .card.solo { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(300px, 1fr) minmax(320px, 1.5fr); gap: .9em 2.4em; align-items: start; }
   .card.solo > .card-head { grid-column: 1 / -1; }
+  /* Einzelkarte füllt die Kachelhöhe, Diagramme wachsen mit */
+  main.fill { display: flex; flex-direction: column; }
+  main.fill > .card.solo { flex: 1 0 auto; grid-template-rows: auto 1fr; }
+  .card.solo .col-a { align-self: start; }
+  .card.solo .col-b { align-self: stretch; }
+  .card.solo .chart { flex: 1 1 0; min-height: 110px; overflow: hidden; }
+  .card.solo .chart.half { min-height: 80px; }
   .col-a, .col-b { display: flex; flex-direction: column; gap: .9em; min-width: 0; }
   .card.solo .col-b .chart-head { border-top: 0; padding-top: 0; }
   .card.solo .hero .val { font-size: clamp(2.8em, 6vw, 4.4em); }
   .warn-box { border-radius: 10px; padding: .6em .8em; font-size: .88em; line-height: 1.4; background: rgba(224,123,0,.10); color: var(--warn); }
   .warn-box.err { background: rgba(217,58,58,.10); color: var(--err); }
   .note { font-size: .8em; color: var(--ink-3); }
-  @media (max-width: 720px) { .card.solo { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) { .card.solo { grid-template-columns: 1fr; } main.fill > .card.solo { grid-template-rows: auto auto 1fr; } }
   .card-head { display: flex; align-items: baseline; gap: .6em; }
   .card-head h2 { font-size: 1.08em; font-weight: 600; margin: 0; display: flex; align-items: center; gap: .5em; min-width: 0; }
   .card-head .right { margin-left: auto; color: var(--ink-2); font-size: .92em; white-space: nowrap; }
@@ -163,6 +170,7 @@
   @media (max-height: 480px) {
     .chart-head, .chart, .chart-sub { display: none; }
     .card.solo { grid-template-columns: 1fr; }
+    main.fill > .card.solo { flex: 0 0 auto; grid-template-rows: auto; }
   }
 </style>
 </head>
@@ -190,7 +198,7 @@
   const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
   const nf1 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
   const nf2 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
-  const MODE_TXT = ['15-min-Spitze', 'Leistungsmessung', 'Nennleistung'];
+  const MODE_TXT = ['15-min-Spitze', 'Leistungsspitze (1-min-Mittel)', 'Nennleistung'];
   const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
   function energyParts(kwh) {
@@ -265,6 +273,7 @@
       return;
     }
     const solo = state.sources.length === 1;
+    main.classList.toggle('fill', solo);
     main.innerHTML = (solo ? '' : overview()) + state.sources.map((s, i) => card(s, i, solo)).join('');
     main.querySelectorAll('.seg button').forEach(b => b.onclick = () => { view = b.dataset.v; render(); });
     drawCharts();
@@ -318,7 +327,7 @@
 
   function card(s, idx, solo) {
     const cls = 'card' + (solo ? ' solo' : '');
-    const head = `<div class="card-head"><h2><span class="sq" style="background:${s.color}"></span>${esc(s.name)}</h2><span class="right">${MODE_TXT[s.mode] || ''}${s.meters > 1 ? ' · Summe ' + s.meters + ' Zähler' : ''}</span></div>`;
+    const head = `<div class="card-head"><h2><span class="sq" style="background:${s.color}"></span>${esc(s.name)}</h2><span class="right">${MODE_TXT[s.mode] || ''}${s.mode === 1 && s.powers > 1 ? ' · Summe ' + s.powers + ' Messungen' : (s.meters > 1 ? ' · Summe ' + s.meters + ' Zähler' : '')}</span></div>`;
     if (s.error) return `<section class="${cls}" data-card="${idx}">${head}<div class="err"><span aria-hidden="true">⚠</span>${esc(s.error)}</div></section>`;
 
     const y = yearRow(s, selectedYear);
@@ -338,6 +347,7 @@
       (y.ignored && y.ignored <= 20 ? `<br><span style="color:var(--warn)">${y.ignored} Ausreißer ignoriert</span>` : '');
     const warnings = checks(y).map(w => `<div class="warn-box ${w[0]}">⚠ ${w[1]}</div>`).join('');
     let notes = '';
+    if (s.mode === 1 && y.resolution && y.resolution !== '1 min') notes += `<div class="note">Spitze aus ${y.resolution}-Mitteln (keine 1-min-Daten im Archiv).</div>`;
     if (s.mode === 0 && y.resolution === '60 min') notes += '<div class="note">Spitze aus Stundenmitteln (keine 5-min-Daten im Archiv) – die echte 15-min-Spitze kann etwas höher liegen.</div>';
     if (y.incomplete && y.forecastHours == null) notes += '<div class="note">Für eine Hochrechnung auf das ganze Jahr sind mindestens 14 Tage Daten nötig.</div>';
     const tag = y.incomplete ? 'unvollständig' : (running ? 'bisher' : '');
@@ -374,23 +384,27 @@
     let out = `<div class="chart-head">${seg}<span>Monatswerte</span></div>`;
     if (!hasData(y) || !y.months || !y.months.length) return out + `<div class="note">Keine Monatswerte für ${selectedYear}.</div>`;
     const pm = s.mode !== 2 && y.peakTime ? new Date(y.peakTime * 1000).getMonth() + 1 : 0;
-    out += `<div class="chart-sub"><span>Energie je Monat</span><b>${txt(energyParts(y.energy))}</b></div><div class="chart" data-s="${idx}" data-k="menergy"></div>`;
+    out += `<div class="chart-sub"><span>Energie je Monat</span><b>${txt(energyParts(y.energy))}</b></div><div class="chart half" data-s="${idx}" data-k="menergy"></div>`;
     if (s.mode !== 2) {
-      out += `<div class="chart-sub"><span>Leistungsspitze je Monat${pm ? ' · Jahresspitze im ' + MON[pm - 1] : ''}</span><b>${txt(powerParts(y.peak))}</b></div><div class="chart" data-s="${idx}" data-k="mpeak"></div>`;
+      out += `<div class="chart-sub"><span>Leistungsspitze je Monat${pm ? ' · Jahresspitze im ' + MON[pm - 1] : ''}</span><b>${txt(powerParts(y.peak))}</b></div><div class="chart half" data-s="${idx}" data-k="mpeak"></div>`;
     }
     return out;
   }
 
   function drawCharts() {
-    document.querySelectorAll('.chart[data-s]').forEach(el => {
+    const els = [...document.querySelectorAll('.chart[data-s]')];
+    els.forEach(el => el.innerHTML = '');           // alte Grafik darf die Höhe nicht festhalten
+    const sizes = els.map(el => [el.clientWidth, el.clientHeight]);
+    els.forEach((el, n) => {
       const s = state.sources[+el.dataset.s];
       const kind = el.dataset.k;
       const solo = !!el.closest('.solo');
-      const wide = solo && window.innerWidth > 720 && window.innerHeight > 560;
-      let H = kind === 'years' ? (wide ? 260 : (window.innerWidth > 560 ? 120 : 100)) : (wide ? 130 : 96);
+      let H;
+      if (solo) H = Math.max(kind === 'years' ? 110 : 80, Math.floor(sizes[n][1]));
+      else H = kind === 'years' ? (window.innerWidth > 560 ? 120 : 100) : 96;
       const cfg = kind === 'years' ? yearItems(s) : monthItems(s, kind);
       el._items = cfg;
-      el.innerHTML = barsSvg(cfg, Math.max(140, el.clientWidth), H);
+      el.innerHTML = barsSvg(cfg, Math.max(140, sizes[n][0]), H);
       el.querySelectorAll('.hit').forEach(h => bindHit(el, h));
     });
   }
@@ -500,7 +514,14 @@
     if (typeof requestAction === 'function') requestAction('Refresh', true);
   };
   let rt;
-  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => state && drawCharts(), 120); });
+  const redraw = () => { clearTimeout(rt); rt = setTimeout(() => state && drawCharts(), 120); };
+  window.addEventListener('resize', redraw);
+  if (window.ResizeObserver) {
+    let lastW = 0, lastH = 0;
+    new ResizeObserver(() => {
+      if (window.innerWidth !== lastW || window.innerHeight !== lastH) { lastW = window.innerWidth; lastH = window.innerHeight; redraw(); }
+    }).observe(document.documentElement);
+  }
 </script>
 </body>
 </html>

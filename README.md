@@ -27,7 +27,7 @@ werden in der Kachel angezeigt und im Debug-Fenster mit Zeitpunkt protokolliert.
 | Option | Berechnung |
 |---|---|
 | 15-min-Maximum aus Zähler | höchster 15-min-Mittelwert aus den 5-min-Aggregaten des Zählers (wie die RLM-Abrechnung). Gibt es keine 5-min-Daten, wird mit Stundenmitteln gerechnet. |
-| Maximum der Leistungsvariable | höchster geloggter Leistungswert im Jahr |
+| Maximum Summe Leistung 1–5 | bis zu 5 Wirkleistungen (z. B. je Trafo, Aggregationstyp „Standard“) werden je Minute addiert (1-min-Mittel); die höchste zeitgleiche Summe ist die Bezugsleistung. Ohne 1-min-Daten: 5-min- bzw. Stundenmittel. |
 | Nennleistung | fester Wert, z. B. Kessel- oder Anschlussleistung (→ Vollbenutzungsstunden) |
 
 ## Faktoren

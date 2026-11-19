@@ -27,6 +27,7 @@ class Benutzungsstunden extends IPSModule
     private const AGG_DAY = 1;
     private const AGG_MONTH = 3;
     private const AGG_5MIN = 5;
+    private const AGG_1MIN = 6;
 
     private const DEFAULT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 
@@ -175,6 +176,7 @@ class Benutzungsstunden extends IPSModule
                 'color'  => $this->colorFor($src, $i),
                 'mode'   => (int) $src['PeakMode'],
                 'meters' => count($src['Meters']),
+                'powers' => count($src['PowerVars']),
                 'error'  => '',
                 'years'  => []
             ];
@@ -379,8 +381,8 @@ class Benutzungsstunden extends IPSModule
 
         [$e, $f] = $this->energyFromCounters($archiveID, $src['Meters'], $ef, $from, $to);
         if ($mode === 1) {
-            [$p, $t] = $this->peakFromPowerVariable($archiveID, (int) $src['PowerVariable'], (float) $src['PowerFactor'], $from, $to);
-            return ['e' => $e, 'p' => $p, 't' => $t, 'r' => 'Messwert', 'i' => 0, 'f' => $f];
+            [$p, $t, $r, $i] = $this->peakFromPowerVariables($archiveID, $src['PowerVars'], (float) $src['PowerFactor'], (float) $src['PeakLimit'], $from, $to);
+            return ['e' => $e, 'p' => $p, 't' => $t, 'r' => $r, 'i' => $i, 'f' => $f];
         }
         return ['e' => $e, 'p' => 0.0, 't' => 0, 'r' => 'Nennleistung', 'i' => 0, 'f' => $f];
     }
@@ -508,19 +510,51 @@ class Benutzungsstunden extends IPSModule
         return [$energy * $factor, $peak, $peakTime, $resolution, $ignored, $this->coverageStart($first, $meters)];
     }
 
-    /** Maximalwert einer Leistungsvariable (Max der Tagesaggregate = höchster Rohwert). */
-    private function peakFromPowerVariable(int $archiveID, int $varID, float $factor, int $start, int $end): array
+    /**
+     * Höchste zeitgleiche Summenleistung mehrerer Leistungsvariablen (z. B. 5 Trafos).
+     * Je Variable werden die 1-min-Mittelwerte gelesen und je Minute addiert – so entsteht die echte
+     * Summenspitze, nicht die Summe der Einzelspitzen. Fehlen 1-min-Aggregate, wird auf 5-min- bzw.
+     * Stundenmittel ausgewichen. Werte über der Plausibilitätsgrenze [kW] werden übersprungen.
+     *
+     * @return array [Spitze kW, Zeitpunkt, Auflösung, Anzahl ignorierter Intervalle]
+     */
+    private function peakFromPowerVariables(int $archiveID, array $vars, float $factor, float $limitKW, int $start, int $end): array
     {
-        $peak = 0.0;
-        $peakTime = 0;
-        foreach ($this->getAggregated($archiveID, $varID, self::AGG_DAY, $start, $end) as $row) {
-            $v = (float) $row['Max'];
-            if ($v > $peak) {
-                $peak = $v;
-                $peakTime = (int) ($row['MaxTime'] ?? $row['TimeStamp']);
+        foreach ([self::AGG_1MIN => [60, '1 min'], self::AGG_5MIN => [300, '5 min'], self::AGG_HOUR => [3600, '60 min']] as $level => [$len, $label]) {
+            $sum = [];
+            $found = false;
+            // 1-min-Werte in 6-Tage-Blöcken abfragen (Abfragelimit)
+            $chunk = $level === self::AGG_1MIN ? 6 * 86400 : 31 * 86400;
+            foreach ($vars as $varID) {
+                for ($from = $start; $from < $end; $from += $chunk) {
+                    foreach ($this->getAggregated($archiveID, $varID, $level, $from, min($from + $chunk, $end)) as $row) {
+                        $found = true;
+                        $b = intdiv((int) $row['TimeStamp'], $len);
+                        $sum[$b] = ($sum[$b] ?? 0.0) + (float) $row['Avg'];
+                    }
+                }
             }
+            if (!$found) {
+                continue;
+            }
+            $peak = 0.0;
+            $peakTime = 0;
+            $ignored = 0;
+            foreach ($sum as $b => $v) {
+                $kw = $v * $factor;
+                if ($limitKW > 0 && $kw > $limitKW) {
+                    $ignored++;
+                    $this->SendDebug('Plausibilität', sprintf('%s: %.1f kW > %.1f kW ignoriert', date('d.m.Y H:i', $b * $len), $kw, $limitKW), 0);
+                    continue;
+                }
+                if ($kw > $peak) {
+                    $peak = $kw;
+                    $peakTime = $b * $len;
+                }
+            }
+            return [$peak, $peakTime, $label, $ignored];
         }
-        return [$peak * $factor, $peakTime];
+        return [0.0, 0, '', 0];
     }
 
     private function getAggregated(int $archiveID, int $varID, int $level, int $start, int $end): array
@@ -547,7 +581,7 @@ class Benutzungsstunden extends IPSModule
                 'Meters'         => $this->collectMeters($row),
                 'EnergyFactor'   => (float) (($row['EnergyFactor'] ?? 1) ?: 1),
                 'PeakMode'       => (int) ($row['PeakMode'] ?? 0),
-                'PowerVariable'  => (int) ($row['PowerVariable'] ?? 0),
+                'PowerVars'      => $this->collectIds($row, ['PowerVariable', 'PowerVariable2', 'PowerVariable3', 'PowerVariable4', 'PowerVariable5']),
                 'PowerFactor'    => (float) (($row['PowerFactor'] ?? 1) ?: 1),
                 'NominalPower'   => (float) ($row['NominalPower'] ?? 0),
                 'PeakLimit'      => (float) ($row['PeakLimit'] ?? 0),
@@ -560,8 +594,13 @@ class Benutzungsstunden extends IPSModule
     /** Zähler 1–5 einer Zeile, ohne leere Felder und doppelte Einträge. */
     private function collectMeters(array $row): array
     {
+        return $this->collectIds($row, ['EnergyVariable', 'EnergyVariable2', 'EnergyVariable3', 'EnergyVariable4', 'EnergyVariable5']);
+    }
+
+    private function collectIds(array $row, array $cols): array
+    {
         $ids = [];
-        foreach (['EnergyVariable', 'EnergyVariable2', 'EnergyVariable3', 'EnergyVariable4', 'EnergyVariable5'] as $col) {
+        foreach ($cols as $col) {
             $id = (int) ($row[$col] ?? 0);
             if ($id > 0 && !in_array($id, $ids, true)) {
                 $ids[] = $id;
@@ -588,12 +627,20 @@ class Benutzungsstunden extends IPSModule
             }
         }
         if ($src['PeakMode'] === 1) {
-            $pv = $src['PowerVariable'];
-            if ($pv <= 0 || !IPS_VariableExists($pv)) {
-                return 'Bezugsleistung „Leistungsvariable“ gewählt, aber keine gültige Leistungsvariable angegeben.';
+            if (count($src['PowerVars']) === 0) {
+                return 'Bezugsleistung „Leistungsmessung“ gewählt, aber keine Leistungsvariable angegeben.';
             }
-            if (!AC_GetLoggingStatus($archiveID, $pv)) {
-                return 'Leistungsvariable wird nicht geloggt.';
+            foreach ($src['PowerVars'] as $n => $pv) {
+                $label = count($src['PowerVars']) > 1 ? 'Leistung ' . ($n + 1) . ' (#' . $pv . ')' : 'Leistungsvariable';
+                if (!IPS_VariableExists($pv)) {
+                    return $label . ' existiert nicht.';
+                }
+                if (!AC_GetLoggingStatus($archiveID, $pv)) {
+                    return $label . ' wird nicht geloggt.';
+                }
+                if (AC_GetAggregationType($archiveID, $pv) !== 0) {
+                    return $label . ' muss mit Aggregationstyp „Standard“ geloggt werden.';
+                }
             }
         }
         if ($src['PeakMode'] === 2 && $src['NominalPower'] <= 0) {
@@ -605,9 +652,9 @@ class Benutzungsstunden extends IPSModule
     /** Schlüssel für den Cache – ändert sich die Konfiguration einer Messstelle, wird neu berechnet. */
     private function sourceKey(array $src): string
     {
-        return md5('v2|' . implode('|', [
+        return md5('v3|' . implode('|', [
             implode(',', $src['Meters']), $src['EnergyFactor'], $src['PeakMode'],
-            $src['PowerVariable'], $src['PowerFactor'], $src['NominalPower'], $src['PeakLimit']
+            implode(',', $src['PowerVars']), $src['PowerFactor'], $src['NominalPower'], $src['PeakLimit']
         ]));
     }
 
