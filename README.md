@@ -90,7 +90,7 @@ Das Modul macht zur Laufzeit keinerlei Online-Abfragen: Daten kommen ausschließ
 Kachel für die Tile-Visu im gleichen Stil: Wirkleistung und Wirkarbeit mehrerer Trafos.
 
 ## Einrichtung
-Instanz „Trafo-Monitor“ anlegen, je Trafo eine Zeile:
+Instanz „TrafoMonitor“ anlegen, je Trafo eine Zeile:
 
 | Feld | Inhalt |
 |---|---|
