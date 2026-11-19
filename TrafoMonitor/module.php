@@ -493,7 +493,12 @@ class TrafoMonitor extends IPSModule
         if ($varID <= 0 || $end <= $start) {
             return [];
         }
+        // 5-min-Werte berechnet Symcon aus den Rohdaten (max. 200.000 je Abfrage) – bei Bedarf halbieren
         $rows = @AC_GetAggregatedValues($archive, $varID, $level, $start, $end - 1, 0);
+        if (!is_array($rows) && $level === self::AGG_5MIN && $end - $start > 3600) {
+            $mid = $start + intdiv($end - $start, 2);
+            return array_merge($this->agg($archive, $varID, $level, $start, $mid), $this->agg($archive, $varID, $level, $mid, $end));
+        }
         return is_array($rows) ? $rows : [];
     }
 

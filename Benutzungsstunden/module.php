@@ -595,7 +595,7 @@ class Benutzungsstunden extends IPSModule
             $per = [];
             $found = false;
             // 1-min-Werte in 6-Tage-Blöcken abfragen (Abfragelimit)
-            $chunk = $level === self::AGG_1MIN ? 6 * 86400 : 31 * 86400;
+            $chunk = 31 * 86400;   // Aufteilung für Minutenwerte übernimmt getAggregated()
             foreach ($vars as $varID) {
                 for ($from = $start; $from < $end; $from += $chunk) {
                     foreach ($this->getAggregated($archiveID, $varID, $level, $from, min($from + $chunk, $end)) as $row) {
@@ -631,13 +631,42 @@ class Benutzungsstunden extends IPSModule
         return [0.0, 0, '', 0, []];
     }
 
+    /**
+     * Aggregierte Werte lesen. 1- und 5-min-Werte berechnet Symcon bei jeder Abfrage aus den Rohdaten
+     * und liest dafür höchstens 200.000 Rohwerte – bei dichtem Logging scheitern daher große Zeiträume.
+     * Minutenwerte werden deshalb tageweise abgefragt; scheitert eine Abfrage trotzdem, wird der
+     * Zeitraum halbiert (bis min. 1 h).
+     */
     private function getAggregated(int $archiveID, int $varID, int $level, int $start, int $end): array
     {
         if ($end <= $start) {
             return [];
         }
+        if ($level === self::AGG_1MIN || $level === self::AGG_5MIN) {
+            $step = $level === self::AGG_1MIN ? 6 * 3600 : 86400;
+            $out = [];
+            for ($a = $start; $a < $end; $a += $step) {
+                $out = array_merge($out, $this->aggregatedSplit($archiveID, $varID, $level, $a, min($a + $step, $end)));
+            }
+            return $out;
+        }
         $rows = @AC_GetAggregatedValues($archiveID, $varID, $level, $start, $end - 1, 0);
         return is_array($rows) ? $rows : [];
+    }
+
+    private function aggregatedSplit(int $archiveID, int $varID, int $level, int $start, int $end): array
+    {
+        $rows = @AC_GetAggregatedValues($archiveID, $varID, $level, $start, $end - 1, 0);
+        if (is_array($rows)) {
+            return $rows;
+        }
+        if ($end - $start <= 3600) {
+            $this->SendDebug('Archiv', sprintf('#%d: Minutenwerte %s nicht abrufbar', $varID, date('d.m.Y H:i', $start)), 0);
+            return [];
+        }
+        $mid = $start + intdiv($end - $start, 2);
+        return array_merge($this->aggregatedSplit($archiveID, $varID, $level, $start, $mid),
+                           $this->aggregatedSplit($archiveID, $varID, $level, $mid, $end));
     }
 
     // ------------------------------------------------------------------ Hilfsfunktionen
@@ -726,7 +755,7 @@ class Benutzungsstunden extends IPSModule
     /** Schlüssel für den Cache – ändert sich die Konfiguration einer Messstelle, wird neu berechnet. */
     private function sourceKey(array $src): string
     {
-        return md5('v4|' . implode('|', [
+        return md5('v5|' . implode('|', [
             implode(',', $src['Meters']), $src['EnergyFactor'], $src['PeakMode'],
             implode(',', $src['PowerVars']), $src['PowerFactor'], $src['NominalPower'], $src['PeakLimit']
         ]));
