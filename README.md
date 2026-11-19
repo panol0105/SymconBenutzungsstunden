@@ -49,6 +49,16 @@ Bekannte Lücken zu Jahresbeginn (z. B. vor Produktionsstart) lassen sich über 
 Umschalter „Jahre / Monate“ in der Kachel: Energie je Monat und Leistungsspitze je Monat; der Monat der Jahresspitze ist hervorgehoben.
 Der Jahreswert bleibt die maßgebliche Kennzahl (Jahresenergie ÷ höchste Spitze des Jahres).
 
+## Aufteilung der Spitze
+Bei mehreren Zählern bzw. Leistungen speichert das Modul für jede Spitze (Jahr und Monat) den Anteil jeder Variable.
+- Kachel → Bezugsleistung → „Aufteilung anzeigen“ bzw. Monatsansicht → Klick auf einen Spitzen-Balken: Popup mit Anteilen je Trafo.
+- Tooltip der Monatsspitzen zeigt die Anteile direkt.
+- Debug-Fenster: „Spitze JJJJ: … kW am … = T1 + T2 + …“.
+So lässt sich ein Fehlwert sofort einem Trafo zuordnen.
+
+## Datenlücke ignorieren bis
+Optionales Datum (z. B. Produktionsstart). Fehlen Archivdaten nur bis zu diesem Tag, gilt das Jahr als vollständig.
+
 ## Info-Button
 Das „i“ in der Kachel öffnet ein Popup, das Benutzungsstunden, typische Werte, die Bedeutung für Netzentgelte und die Kachelinhalte für Laien erklärt.
 
