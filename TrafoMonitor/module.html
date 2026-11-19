@@ -196,13 +196,19 @@
         <p>Die <b>Wirkarbeit</b> ist die Energiemenge, die über einen Zeitraum verbraucht wurde – vergleichbar mit der gefahrenen Strecke.
           Sie bestimmt die Stromrechnung (Arbeitspreis).</p>
         <div class="ex"><b>Beispiel:</b> Läuft ein Trafo eine Stunde lang mit 500 kW, beträgt die Wirkarbeit 500 kWh.</div>
+        <h3>Scheinleistung (kVA) und Blindleistung (kvar)</h3>
+        <p>Neben der Wirkleistung fließt auch <b>Blindleistung</b> – sie wird z. B. von Motoren zum Aufbau ihrer Magnetfelder benötigt, verrichtet aber keine Arbeit.
+          Beides zusammen ergibt die <b>Scheinleistung</b>. Sie ist es, die den Trafo tatsächlich belastet; deshalb sind Trafos in kVA angegeben.</p>
+        <h3>cos φ (Leistungsfaktor)</h3>
+        <p>Anteil der Wirkleistung an der Scheinleistung (Wirk ÷ Schein). <b>1,00</b> wäre ideal. Grün ab 0,95, orange ab 0,90, rot darunter –
+          unter 0,9 berechnen viele Netzbetreiber zusätzlich Blindarbeit. Ein sinkender Wert kann auf eine gestörte Kompensationsanlage hindeuten.</p>
         <h3>Auslastung</h3>
-        <p>Verhältnis der aktuellen Leistung zur Nennleistung des Trafos. Grün bis 80 %, orange ab 80 %, rot ab 95 %.
-          Vereinfacht wird kW ÷ kVA gerechnet (Blindleistung bleibt unberücksichtigt).</p>
+        <p>Scheinleistung im Verhältnis zur Nennleistung des Trafos. Grün bis 80 %, orange ab 80 %, rot ab 95 %.
+          Die Ansicht <b>Auslastung</b> im Diagramm zeigt den Verlauf mit beiden Grenzlinien.</p>
         <h3>Bedienung</h3>
         <ul>
           <li><b>Heute / Woche / Monat / Jahr</b> wählt den Zeitraum, mit <b>‹ ›</b> blätterst du zurück und vor.</li>
-          <li><b>Leistung / Wirkarbeit</b> schaltet das Diagramm zwischen Verlauf und Verbrauch je Stunde, Tag oder Monat um.</li>
+          <li><b>Leistung / Auslastung / Wirkarbeit</b> schaltet das Diagramm zwischen Leistungsverlauf, Auslastung in % und Verbrauch je Stunde, Tag oder Monat um.</li>
           <li>Ein Klick auf einen <b>Trafo in der Tabelle</b> oder in der Legende blendet ihn im Diagramm aus oder ein.</li>
           <li>Mit der Maus über dem Diagramm (oder Tippen) erscheinen die genauen Werte.</li>
           <li>Die Werte „aktuell“ aktualisieren sich live, die Diagramme jede Minute.</li>
@@ -258,7 +264,7 @@
     try { d = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return; }
     if (!d) return;
     if (d.type === 'live') {
-      if (state) { state.live = d.values; state.liveTs = d.ts; renderKpis(); renderTable(); }
+      if (state) { state.live = d.values; state.liveS = d.apparent; state.liveQ = d.reactive; state.liveTs = d.ts; renderKpis(); renderTable(); }
       return;
     }
     if (d.type !== 'data') return;
@@ -289,7 +295,7 @@
         </section>
         <section class="card chart-card">
           <div class="card-head">
-            <span class="seg small" id="modes"><button data-m="power">Leistung</button><button data-m="energy">Wirkarbeit</button></span>
+            <span class="seg small" id="modes"><button data-m="power">Leistung</button>${state.trafos.some(t => t.nominal > 0) ? '<button data-m="load">Auslastung</button>' : ''}<button data-m="energy">Wirkarbeit</button></span>
             <span class="right" id="chartInfo"></span>
           </div>
           <div class="legend" id="legend"></div>
@@ -313,10 +319,24 @@
   const liveSum = () => (state.live || []).reduce((a, v, i) => a + (v != null && !state.trafos[i].error ? v : 0), 0);
   const nomSum = () => state.trafos.reduce((a, t) => a + (t.nominal || 0), 0);
   const lvl = pct => pct >= 95 ? 'lvl-err' : pct >= 80 ? 'lvl-warn' : 'lvl-ok';
+  const pfCls = v => v >= 0.95 ? 'lvl-ok' : v >= 0.9 ? 'lvl-warn' : 'lvl-err';
+  const PF = v => v == null ? '–' : nf2.format(v);
+  const KVA = v => v == null ? ['–', ''] : (Math.abs(v) >= 1000 ? [nf2.format(v / 1000), 'MVA'] : [Math.abs(v) >= 100 ? nf0.format(v) : nf1.format(v), 'kVA']);
+  const KVAR = v => v == null ? ['–', ''] : (Math.abs(v) >= 1000 ? [nf2.format(v / 1000), 'Mvar'] : [Math.abs(v) >= 100 ? nf0.format(v) : nf1.format(v), 'kvar']);
+  const pNow = i => (state.live || [])[i];
+  const sNow = i => (state.liveS || [])[i];
+  const loadNow = i => { const t = state.trafos[i], v = sNow(i) != null ? sNow(i) : pNow(i); return t.nominal > 0 && v != null ? v / t.nominal * 100 : null; };
+  const pfNow = i => { const p = pNow(i), sv = sNow(i); return p != null && sv > 0 ? Math.min(1, Math.abs(p) / sv) : null; };
+  const qNow = i => { const q = (state.liveQ || [])[i]; if (q != null) return q; const p = pNow(i), sv = sNow(i); return p != null && sv != null ? Math.sqrt(Math.max(0, sv * sv - p * p)) : null; };
+  const hasAnyS = () => state.trafos.some(t => t.hasS && !t.error);
+  function pfTotalNow() { let P = 0, S = 0; state.trafos.forEach((t, i) => { if (!t.error && sNow(i) > 0 && pNow(i) != null) { P += Math.abs(pNow(i)); S += sNow(i); } }); return S > 0 ? Math.min(1, P / S) : null; }
+  function pfTotalAvg() { let P = 0, S = 0; state.trafos.forEach(t => { if (!t.error && t.savg > 0 && t.avg != null) { P += t.avg; S += t.savg; } }); return S > 0 ? Math.min(1, P / S) : null; }
 
   function renderKpis() {
     const el = document.getElementById('kpis'); if (!el) return;
     const live = liveSum(), nom = nomSum();
+    const sTot = state.trafos.reduce((a, t, i) => a + (!t.error && sNow(i) != null ? sNow(i) : 0), 0);
+    const loadTot = state.trafos.reduce((a, t, i) => a + (!t.error ? (sNow(i) != null ? sNow(i) : (pNow(i) || 0)) : 0), 0);
     const energy = state.trafos.reduce((a, t) => a + (t.energy || 0), 0);
     const sl = state.sum.line;
     const avg = sl.length ? sl.reduce((a, p) => a + p[1], 0) / sl.length : null;
@@ -326,21 +346,25 @@
     let meter = '';
     if (nom > 0) {
       meter = `<div class="meter"><div class="bar">${state.trafos.map((t, i) => {
-        const v = (state.live || [])[i]; return v > 0 && !t.error ? `<i style="width:${Math.min(100, v / nom * 100)}%;background:${t.color}"></i>` : ''; }).join('')}</div></div>`;
+        const v = sNow(i) != null ? sNow(i) : pNow(i); return v > 0 && !t.error ? `<i style="width:${Math.min(100, v / nom * 100)}%;background:${t.color}"></i>` : ''; }).join('')}</div></div>`;
     }
     el.innerHTML = `
-      <section class="card kpi hero"><div class="k-lbl"><span>Leistung aktuell</span><span>${nom > 0 ? nf1.format(live / nom * 100) + ' % von ' + tx(P(nom)).replace('W', 'VA') : ''}</span></div>
+      <section class="card kpi hero"><div class="k-lbl"><span>Wirkleistung aktuell</span><span>${nom > 0 ? nf1.format(loadTot / nom * 100) + ' % von ' + tx(KVA(nom)) : ''}</span></div>
         <div class="k-val">${(p => `<b>${p[0]}</b><span class="u">${p[1]}</span>`)(P(live))}</div>${meter}
-        <div class="k-sub">Summe ${state.trafos.length} Trafos · live</div></section>
+        <div class="k-sub">${hasAnyS() ? 'Schein ' + tx(KVA(sTot)) + ' · ' : ''}Summe ${state.trafos.length} Trafos · live</div></section>
       <section class="card kpi"><div class="k-lbl"><span>Wirkarbeit</span><span>${rangeTxt}</span></div>
         <div class="k-val">${(p => `<b>${p[0]}</b><span class="u">${p[1]}</span>`)(E(energy))}</div>
         <div class="k-sub">${state.label}</div></section>
       <section class="card kpi"><div class="k-lbl"><span>Spitze</span><span>${res}</span></div>
         <div class="k-val">${(p => `<b>${p[0]}</b><span class="u">${p[1]}</span>`)(P(state.sum.peak))}</div>
-        <div class="k-sub">${state.sum.peakTime ? (range === 'year' ? new Date(state.sum.peakTime * 1000).toLocaleDateString('de-DE') : fmtTime(state.sum.peakTime, range !== 'day')) : 'keine Daten'}</div></section>
-      <section class="card kpi"><div class="k-lbl"><span>Ø Leistung</span><span>${rangeTxt}</span></div>
+        <div class="k-sub">${state.sum.peakTime ? (range === 'year' ? new Date(state.sum.peakTime * 1000).toLocaleDateString('de-DE') : fmtTime(state.sum.peakTime, range !== 'day')) : 'keine Daten'}${avg != null ? ' · Ø ' + tx(P(avg)) : ''}</div></section>
+      ${hasAnyS() ? (() => { const pf = pfTotalNow(), pa = pfTotalAvg(), q = state.trafos.reduce((a, t, i) => a + (!t.error && qNow(i) != null ? qNow(i) : 0), 0);
+        return `<section class="card kpi"><div class="k-lbl"><span>cos φ gesamt</span><span>live</span></div>
+        <div class="k-val"><b class="${pf != null ? pfCls(pf) : ''}">${PF(pf)}</b></div>
+        <div class="k-sub">Ø ${rangeTxt} ${PF(pa)} · Blind ${tx(KVAR(q))}</div></section>`; })()
+      : `<section class="card kpi"><div class="k-lbl"><span>Ø Leistung</span><span>${rangeTxt}</span></div>
         <div class="k-val">${(p => `<b>${p[0]}</b><span class="u">${p[1]}</span>`)(P(avg))}</div>
-        <div class="k-sub">${state.sum.peak && avg ? 'Spitze/Ø ' + nf2.format(state.sum.peak / avg) : '&nbsp;'}</div></section>`;
+        <div class="k-sub">${state.sum.peak && avg ? 'Spitze/Ø ' + nf2.format(state.sum.peak / avg) : '&nbsp;'}</div></section>`}`;
   }
 
   function renderTable() {
@@ -348,27 +372,33 @@
     const total = state.trafos.reduce((a, t) => a + (t.energy || 0), 0);
     const rows = state.trafos.map((t, i) => {
       const name = `<span class="name-cell"><span class="sq" style="background:${t.color}"></span>${esc(t.name)}</span>`;
-      if (t.error) return `<tr class="off"><td>${name}</td><td colspan="7" class="err-txt" style="text-align:left">⚠ ${esc(t.error)}</td></tr>`;
-      const v = (state.live || [])[i];
-      const pct = t.nominal > 0 && v != null ? v / t.nominal * 100 : null;
-      return `<tr data-i="${i}" class="${hidden.has(i) ? 'off' : ''}" title="${t.meter != null ? 'Zählerstand ' + tx(E(t.meter)) : ''}">
+      if (t.error) return `<tr class="off"><td>${name}</td><td colspan="8" class="err-txt" style="text-align:left">⚠ ${esc(t.error)}</td></tr>`;
+      const v = pNow(i), sv = sNow(i), pct = loadNow(i), pf = pfNow(i), q = qNow(i);
+      const tt = [t.meter != null ? 'Zählerstand ' + tx(E(t.meter)) : '', q != null ? 'Blindleistung ' + tx(KVAR(q)) + ((state.liveQ || [])[i] == null ? ' (berechnet)' : '') : '',
+        t.nominal > 0 ? 'Nennleistung ' + tx(KVA(t.nominal)) : '', t.pf != null ? 'Ø cos φ im Zeitraum ' + PF(t.pf) : ''].filter(Boolean).join(' · ');
+      const mx = t.hasS ? KVA(t.smax) : P(t.max), mxT = t.hasS ? t.smaxTime : t.maxTime;
+      return `<tr data-i="${i}" class="${hidden.has(i) ? 'off' : ''}" title="${esc(tt)}">
         <td>${name}</td>
         <td>${vu(P(v))}</td>
-        <td class="col-opt2">${t.nominal > 0 ? vu([nf0.format(t.nominal), 'kVA']) : '–'}</td>
+        <td class="col-opt2">${t.hasS ? vu(KVA(sv)) : '–'}</td>
+        <td class="${pf != null ? pfCls(pf) : ''}">${PF(pf)}</td>
         <td class="${pct != null ? lvl(pct) : ''}">${pct != null ? nf1.format(pct) + ' %' : '–'}</td>
-        <td class="col-opt" title="${t.maxTime ? fmtTime(t.maxTime, true) : ''}">${vu(P(t.max))}</td>
+        <td class="col-opt" title="${mxT ? fmtTime(mxT, true) : ''}">${vu(mx)}</td>
         <td>${vu(E(t.energy))}${t.energyFromPower ? '<span class="u" title="aus Leistung berechnet">*</span>' : ''}</td>
         <td class="col-opt2">${total > 0 ? nf1.format(t.energy / total * 100) + ' %' : '–'}</td>
         <td class="col-opt col-spark">${spark(t)}</td>
       </tr>`;
     }).join('');
     const live = liveSum(), nom = nomSum();
+    const sTot = state.trafos.reduce((a, t, i) => a + (!t.error && sNow(i) != null ? sNow(i) : 0), 0);
+    const loadTot = state.trafos.reduce((a, t, i) => a + (!t.error ? (sNow(i) != null ? sNow(i) : (pNow(i) || 0)) : 0), 0);
     const fromPower = state.trafos.some(t => t.energyFromPower);
     el.innerHTML = `<table>
-      <thead><tr><th>Trafo</th><th>Leistung</th><th class="col-opt2">Nenn</th><th>Auslastung</th><th class="col-opt">Max</th><th>Wirkarbeit</th><th class="col-opt2">Anteil</th><th class="col-opt col-spark">Verlauf</th></tr></thead>
+      <thead><tr><th>Trafo</th><th>Wirk</th><th class="col-opt2">Schein</th><th>cos φ</th><th>Auslastung</th><th class="col-opt">Max</th><th>Wirkarbeit</th><th class="col-opt2">Anteil</th><th class="col-opt col-spark">Verlauf</th></tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td>Summe</td><td>${vu(P(live))}</td><td class="col-opt2">${nom > 0 ? vu([nf0.format(nom), 'kVA']) : '–'}</td>
-        <td>${nom > 0 ? nf1.format(live / nom * 100) + ' %' : '–'}</td><td class="col-opt">${vu(P(state.sum.peak))}</td>
+      <tfoot><tr><td>Summe</td><td>${vu(P(live))}</td><td class="col-opt2">${hasAnyS() ? vu(KVA(sTot)) : '–'}</td>
+        <td class="${pfTotalNow() != null ? pfCls(pfTotalNow()) : ''}">${PF(pfTotalNow())}</td>
+        <td title="${nom > 0 ? 'von ' + tx(KVA(nom)) : ''}">${nom > 0 ? nf1.format(loadTot / nom * 100) + ' %' : '–'}</td><td class="col-opt">${vu(P(state.sum.peak))}</td>
         <td>${vu(E(total))}</td><td class="col-opt2">100 %</td><td class="col-opt col-spark"></td></tr></tfoot>
     </table>${fromPower ? '<div class="hint" style="margin-top:.5em">* Wirkarbeit aus der Leistung berechnet (kein Zähler hinterlegt)</div>' : ''}`;
     el.querySelectorAll('tbody tr[data-i]').forEach(tr => tr.onclick = () => toggle(+tr.dataset.i));
@@ -386,12 +416,13 @@
     const el = document.getElementById('legend'); if (!el) return;
     let h = state.trafos.map((t, i) => t.error ? '' :
       `<button class="chip ${hidden.has(i) ? 'off' : ''}" data-i="${i}"><span class="ln" style="background:${t.color}"></span>${esc(t.name)}</button>`).join('');
-    if (mode === 'power') h += `<button class="chip ${sumOn ? '' : 'off'}" data-sum="1"><span class="ln" style="background:${SUM_COLOR};height:2px;border-top:1px dashed ${SUM_COLOR}"></span>Summe</button>`;
+    if (mode === 'power' && state.showSum) h += `<button class="chip ${sumOn ? '' : 'off'}" data-sum="1"><span class="ln" style="background:${SUM_COLOR};height:2px;border-top:1px dashed ${SUM_COLOR}"></span>Summe</button>`;
     el.innerHTML = h;
     el.querySelectorAll('.chip').forEach(c => c.onclick = () => { if (c.dataset.sum) { sumOn = !sumOn; renderLegend(); drawChart(); } else toggle(+c.dataset.i); });
     const info = document.getElementById('chartInfo');
-    if (info) info.textContent = mode === 'power'
-      ? { day: 'kW · Ø 5 min', week: 'kW · Ø 1 h', month: 'kW · Ø 1 h', year: 'kW · Ø 1 Tag' }[range]
+    const avgTxt = { day: 'Ø 5 min', week: 'Ø 1 h', month: 'Ø 1 h', year: 'Ø 1 Tag' }[range];
+    if (info) info.textContent = mode === 'power' ? 'Wirkleistung · ' + avgTxt
+      : mode === 'load' ? '% der Nennleistung · ' + avgTxt
       : { day: 'kWh je Stunde', week: 'kWh je Tag', month: 'kWh je Tag', year: 'kWh je Monat' }[range];
   }
 
@@ -423,7 +454,7 @@
     el.innerHTML = '';
     const W = el.clientWidth, H = el.clientHeight;
     if (W < 50 || H < 50) return;
-    if (mode === 'power') drawLines(el, W, H); else drawBars(el, W, H);
+    if (mode === 'energy') drawBars(el, W, H); else drawLines(el, W, H);
   }
 
   function frame(W, H, maxV, unitFn) {
@@ -438,13 +469,17 @@
     return { L, R, T, B, grid: out.join('') };
   }
 
-  function axisFmtP(maxV) { return maxV >= 2000 ? v => nf1.format(v / 1000).replace(/,0$/, '') + ' MW' : v => nf0.format(v) + ' kW'; }
-  function axisFmtE(maxV) { return maxV >= 2000 ? v => nf1.format(v / 1000).replace(/,0$/, '') + ' MWh' : v => nf0.format(v) + ' kWh'; }
+  const nfAx = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 });
+  function axisFmtP(maxV) { return maxV >= 2000 ? v => nfAx.format(v / 1000) + ' MW' : v => nf0.format(v) + ' kW'; }
+  function axisFmtE(maxV) { return maxV >= 2000 ? v => nfAx.format(v / 1000) + ' MWh' : v => nf0.format(v) + ' kWh'; }
 
   function drawLines(el, W, H) {
     const vis = visible();
-    const series = vis.map(i => ({ i, t: state.trafos[i], pts: state.trafos[i].line }));
-    if (sumOn && state.sum.line.length) {
+    const isLoad = mode === 'load';
+    const series = isLoad
+      ? vis.filter(i => state.trafos[i].nominal > 0).map(i => { const t = state.trafos[i]; return { i, t, pts: (t.hasS && t.sline.length ? t.sline : t.line).map(p => [p[0], p[1] / t.nominal * 100]) }; })
+      : vis.map(i => ({ i, t: state.trafos[i], pts: state.trafos[i].line }));
+    if (!isLoad && sumOn && state.sum.line.length) {
       // Summe nur über die sichtbaren Trafos
       const m = new Map();
       series.forEach(s => s.pts.forEach(p => m.set(p[0], (m.get(p[0]) || 0) + p[1])));
@@ -452,8 +487,9 @@
     }
     const all = series.flatMap(s => s.pts.map(p => p[1]));
     if (!all.length) { el.innerHTML = '<div class="empty">Keine Daten im Zeitraum.</div>'; return; }
-    const maxV = niceMax(Math.max(...all) * 1.05);
-    const f = frame(W, H, maxV, axisFmtP(maxV));
+    const maxV = isLoad ? Math.max(100, niceMax(Math.max(...all) * 1.05)) : niceMax(Math.max(...all) * 1.05);
+    const fmtV = isLoad ? (v => nf1.format(v) + ' %') : (v => tx(P(v)));
+    const f = frame(W, H, maxV, isLoad ? (v => nf0.format(v) + ' %') : axisFmtP(maxV));
     const x = ts => f.L + (ts - state.start) / (state.end - state.start) * (W - f.L - f.R);
     const y = v => f.T + (H - f.T - f.B) * (1 - v / maxV);
     const gap = state.lineStep * 1.5;
@@ -464,11 +500,16 @@
       s.pts.forEach(p => { d += (prev === null || p[0] - prev > gap ? 'M' : 'L') + x(p[0]).toFixed(1) + ',' + y(p[1]).toFixed(1) + ' '; prev = p[0]; });
       svg += `<path d="${d}" fill="none" stroke="${s.t.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" ${s.sum ? 'stroke-dasharray="5 4"' : ''}/>`;
     });
+    // Grenzlinien 80 % / 95 %
+    if (isLoad) [[80, 'var(--warn)'], [95, 'var(--err)']].forEach(([v, c]) => {
+      svg += `<line x1="${f.L}" x2="${W - f.R}" y1="${y(v)}" y2="${y(v)}" stroke="${c}" stroke-width="1.2" stroke-dasharray="6 4" opacity=".8"/>`;
+      svg += `<text x="${W - f.R - 4}" y="${y(v) - 4}" text-anchor="end" style="fill:${c}">${v} %</text>`;
+    });
     // Jetzt-Markierung
     if (state.now < state.end) svg += `<line x1="${x(state.now)}" x2="${x(state.now)}" y1="${f.T}" y2="${H - f.B}" stroke="var(--accent)" stroke-opacity=".35" stroke-dasharray="2 3"/>`;
     svg += `<line id="xh" x1="0" x2="0" y1="${f.T}" y2="${H - f.B}" stroke="var(--ink)" stroke-opacity=".35" visibility="hidden"/><g id="dots"></g>`;
     svg += `<rect id="hit" x="${f.L}" y="0" width="${W - f.L - f.R}" height="${H}" fill="transparent"/>`;
-    el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Leistungsverlauf">${svg}</svg>`;
+    el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${isLoad ? 'Auslastung' : 'Leistungsverlauf'}">${svg}</svg>`;
 
     // Fadenkreuz + Tooltip
     const times = [...new Set(series.flatMap(s => s.pts.map(p => p[0])))].sort((a, b) => a - b);
@@ -486,7 +527,7 @@
       series.forEach((s, k) => {
         const v = idx[k].get(best); if (v == null) return;
         dh += `<circle cx="${x(best)}" cy="${y(v)}" r="4" fill="${s.t.color}" stroke="#fff" stroke-width="2"/>`;
-        rows += `<div class="tr"><span><span class="sq" style="background:${s.t.color}"></span>${esc(s.t.name)}</span><b>${tx(P(v))}</b></div>`;
+        rows += `<div class="tr"><span><span class="sq" style="background:${s.t.color}"></span>${esc(s.t.name)}</span><b>${fmtV(v)}</b></div>`;
       });
       dots.innerHTML = dh;
       const head = range === 'year' ? new Date(best * 1000).toLocaleDateString('de-DE') : fmtTime(best, range !== 'day');

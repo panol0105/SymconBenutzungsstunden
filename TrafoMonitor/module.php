@@ -53,8 +53,10 @@ class TrafoMonitor extends IPSModule
 
         if ($this->ReadPropertyBoolean('Live')) {
             foreach ($trafos as $t) {
-                if ($t['PowerVariable'] > 0 && IPS_VariableExists($t['PowerVariable'])) {
-                    $this->RegisterMessage($t['PowerVariable'], VM_UPDATE);
+                foreach (['PowerVariable', 'ApparentVariable', 'ReactiveVariable'] as $col) {
+                    if ($t[$col] > 0 && IPS_VariableExists($t[$col])) {
+                        $this->RegisterMessage($t[$col], VM_UPDATE);
+                    }
                 }
             }
         }
@@ -85,7 +87,7 @@ class TrafoMonitor extends IPSModule
             return;
         }
         $this->SetBuffer('LastLive', (string) $now);
-        $this->UpdateVisualizationValue(json_encode(['type' => 'live', 'ts' => time(), 'values' => $this->liveValues()]));
+        $this->UpdateVisualizationValue(json_encode(array_merge(['type' => 'live', 'ts' => time()], $this->liveAll())));
     }
 
     public function RequestAction($Ident, $Value)
@@ -122,17 +124,24 @@ class TrafoMonitor extends IPSModule
 
     // ------------------------------------------------------------------ Daten
 
-    private function liveValues(): array
+    /** Aktuelle Werte je Trafo: Wirkleistung kW, Scheinleistung kVA, Blindleistung kvar (null = nicht konfiguriert). */
+    private function liveAll(): array
     {
-        $out = [];
+        $p = $s = $q = [];
         foreach ($this->getTrafos() as $t) {
-            $v = null;
-            if ($t['PowerVariable'] > 0 && IPS_VariableExists($t['PowerVariable'])) {
-                $v = round((float) GetValue($t['PowerVariable']) * $t['PowerFactor'], 2);
-            }
-            $out[] = $v;
+            $p[] = $this->current($t['PowerVariable'], $t['PowerFactor']);
+            $s[] = $this->current($t['ApparentVariable'], $t['ApparentFactor']);
+            $q[] = $this->current($t['ReactiveVariable'], $t['ReactiveFactor']);
         }
-        return $out;
+        return ['values' => $p, 'apparent' => $s, 'reactive' => $q];
+    }
+
+    private function current(int $id, float $factor): ?float
+    {
+        if ($id <= 0 || !IPS_VariableExists($id)) {
+            return null;
+        }
+        return round((float) GetValue($id) * $factor, 2);
     }
 
     /**
@@ -193,10 +202,14 @@ class TrafoMonitor extends IPSModule
             'barUnit'  => $barUnit,
             'showSum'  => $this->ReadPropertyBoolean('ShowSum'),
             'trafos'   => [],
-            'live'     => $this->liveValues(),
+            'live'     => null,
             'error'    => $archive === 0 ? 'Kein Archiv gefunden.' : ''
         ];
 
+        $liveAll = $this->liveAll();
+        $out['live'] = $liveAll['values'];
+        $out['liveS'] = $liveAll['apparent'];
+        $out['liveQ'] = $liveAll['reactive'];
         $sumLine = [];
         $barKeys = [];
         foreach ($trafos as $i => $t) {
@@ -212,7 +225,13 @@ class TrafoMonitor extends IPSModule
                 'avg'     => null,
                 'energy'  => 0.0,
                 'energyFromPower' => false,
-                'meter'   => null
+                'meter'   => null,
+                'hasS'    => $t['ApparentVariable'] > 0,
+                'sline'   => [],     // [ts, kVA]
+                'smax'    => null,
+                'smaxTime' => 0,
+                'savg'    => null,
+                'pf'      => null    // mittlerer Leistungsfaktor im Zeitraum (Ø P ÷ Ø S)
             ];
             if ($archive === 0 || $entry['error'] !== '' || $until <= $start) {
                 $out['trafos'][] = $entry;
@@ -239,6 +258,31 @@ class TrafoMonitor extends IPSModule
                 return $a[0] <=> $b[0];
             });
             $entry['avg'] = $n > 0 ? round($sumAvg / $n, 2) : null;
+
+            // Scheinleistung (für Auslastung und cos φ)
+            if ($t['ApparentVariable'] > 0) {
+                $sSum = 0.0;
+                $sn = 0;
+                foreach ($this->agg($archive, $t['ApparentVariable'], $lineLevel, $start, $until) as $row) {
+                    $ts = (int) $row['TimeStamp'];
+                    $kva = round((float) $row['Avg'] * $t['ApparentFactor'], 2);
+                    $entry['sline'][] = [$ts, $kva];
+                    $sSum += $kva;
+                    $sn++;
+                    $mx = (float) $row['Max'] * $t['ApparentFactor'];
+                    if ($entry['smax'] === null || $mx > $entry['smax']) {
+                        $entry['smax'] = round($mx, 2);
+                        $entry['smaxTime'] = (int) ($row['MaxTime'] ?? $ts);
+                    }
+                }
+                usort($entry['sline'], function ($a, $b) {
+                    return $a[0] <=> $b[0];
+                });
+                $entry['savg'] = $sn > 0 ? round($sSum / $sn, 2) : null;
+                if ($entry['savg'] > 0 && $entry['avg'] !== null) {
+                    $entry['pf'] = round(min(1, $entry['avg'] / $entry['savg']), 3);
+                }
+            }
 
             // Wirkarbeit je Balkenintervall – aus Zähler oder aus der Leistung integriert
             if ($t['EnergyVariable'] > 0) {
@@ -336,6 +380,10 @@ class TrafoMonitor extends IPSModule
                 'PowerFactor'    => (float) (($row['PowerFactor'] ?? 1) ?: 1),
                 'EnergyVariable' => (int) ($row['EnergyVariable'] ?? 0),
                 'EnergyFactor'   => (float) (($row['EnergyFactor'] ?? 1) ?: 1),
+                'ApparentVariable' => (int) ($row['ApparentVariable'] ?? 0),
+                'ApparentFactor' => (float) (($row['ApparentFactor'] ?? 0.001) ?: 0.001),
+                'ReactiveVariable' => (int) ($row['ReactiveVariable'] ?? 0),
+                'ReactiveFactor' => (float) (($row['ReactiveFactor'] ?? 0.001) ?: 0.001),
                 'Nominal'        => (float) ($row['Nominal'] ?? 0),
                 'Color'          => (int) ($row['Color'] ?? -1)
             ];
@@ -354,6 +402,20 @@ class TrafoMonitor extends IPSModule
         }
         if (AC_GetAggregationType($archive, $pv) !== 0) {
             return 'Wirkleistung muss mit Aggregationstyp „Standard“ geloggt werden.';
+        }
+        foreach (['ApparentVariable' => 'Scheinleistung', 'ReactiveVariable' => 'Blindleistung'] as $col => $label) {
+            $id = $t[$col];
+            if ($id > 0) {
+                if (!IPS_VariableExists($id)) {
+                    return $label . '-Variable existiert nicht.';
+                }
+                if (!AC_GetLoggingStatus($archive, $id)) {
+                    return $label . ' wird nicht geloggt.';
+                }
+                if (AC_GetAggregationType($archive, $id) !== 0) {
+                    return $label . ' muss mit Aggregationstyp „Standard“ geloggt werden.';
+                }
+            }
         }
         $ev = $t['EnergyVariable'];
         if ($ev > 0) {

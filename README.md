@@ -97,12 +97,16 @@ Instanz „TrafoMonitor“ anlegen, je Trafo eine Zeile:
 | Wirkleistung | Leistungsvariable (Archiv: Aggregationstyp „Standard“) |
 | Faktor Leistung → kW | W → 0,001 · kW → 1 |
 | Wirkarbeit | Energiezähler (Archiv: „Zähler“), optional – ohne Zähler wird aus der Leistung integriert |
+| Scheinleistung (VA) | optional – für richtige Auslastung (S ÷ S_Nenn) und cos φ = P ÷ S; Faktor VA → kVA: 0,001 |
+| Blindleistung (var) | optional – ohne Variable wird Q = √(S² − P²) berechnet; Faktor var → kvar: 0,001 |
 | Faktor Energie → kWh | Wh → 0,001 · kWh → 1 |
-| Nennleistung [kVA] | für die Auslastung (vereinfacht kW ÷ kVA) |
+| Nennleistung [kVA] | für die Auslastung (mit Scheinleistung: S ÷ S_Nenn, sonst vereinfacht P ÷ S_Nenn) |
+
+**Wichtig:** Faktoren gelten für den Rohwert der Variable, nicht für die in Symcon eingestellte Darstellung (Janitza liefert W, VA, var, Wh → Faktor 0,001).
 
 ## Bedienung in der Kachel
 - **Heute / Woche / Monat / Jahr** und **‹ ›** zum Blättern
-- **Leistung / Wirkarbeit**: Linienverlauf (Ø 5 min / 1 h / 1 Tag) bzw. gestapelte Balken je Stunde / Tag / Monat
+- **Leistung / Auslastung / Wirkarbeit**: Auslastung in % mit Grenzlinien 80 %/95 %; Linienverlauf (Ø 5 min / 1 h / 1 Tag) bzw. gestapelte Balken je Stunde / Tag / Monat
 - Klick auf Trafo in Tabelle oder Legende blendet ihn aus/ein; „Summe“-Linie zuschaltbar
 - Tooltip mit allen Werten; Info-Button erklärt Wirkleistung/Wirkarbeit für Laien
 - Kennzahlen: Leistung aktuell (live), Wirkarbeit, Spitze (höchste gleichzeitige Summe), Ø Leistung
