@@ -31,6 +31,8 @@ class TrafoMonitor extends IPSModule
         $this->RegisterPropertyBoolean('ShowSum', true);
         $this->RegisterPropertyBoolean('Live', true);
 
+        $this->RegisterTimer('Prepare', 0, 'TRM_Prepare($_IPS[\'TARGET\']);');
+
         $this->SetVisualizationType(1);
     }
 
@@ -45,11 +47,20 @@ class TrafoMonitor extends IPSModule
             }
         }
 
+        // Zwischenspeicher verwerfen – Konfiguration hat sich geändert
+        foreach (json_decode($this->GetBuffer('CacheKeys'), true) ?: [] as $k) {
+            $this->SetBuffer($k, '');
+        }
+        $this->SetBuffer('CacheKeys', '[]');
+
         $trafos = $this->getTrafos();
         if (count($trafos) === 0) {
+            $this->SetTimerInterval('Prepare', 0);
             $this->SetStatus(104);
             return;
         }
+        // Startansicht jede Minute im Hintergrund vorbereiten, damit die Kachel sofort Daten hat
+        $this->SetTimerInterval('Prepare', 60 * 1000);
 
         if ($this->ReadPropertyBoolean('Live')) {
             foreach ($trafos as $t) {
@@ -87,7 +98,7 @@ class TrafoMonitor extends IPSModule
             return;
         }
         $this->SetBuffer('LastLive', (string) $now);
-        $this->UpdateVisualizationValue(json_encode(array_merge(['type' => 'live', 'ts' => time()], $this->liveAll())));
+        $this->UpdateVisualizationValue($this->toJson(array_merge(['type' => 'live', 'ts' => time()], $this->liveAll())));
     }
 
     public function RequestAction($Ident, $Value)
@@ -95,31 +106,123 @@ class TrafoMonitor extends IPSModule
         switch ($Ident) {
             case 'Load':
                 $req = json_decode((string) $Value, true) ?: [];
-                $range = in_array($req['range'] ?? '', self::RANGES, true) ? $req['range'] : 'day';
+                $range = in_array($req['range'] ?? '', self::RANGES, true) ? $req['range'] : $this->defaultRange();
                 $offset = max(-500, min(0, (int) ($req['offset'] ?? 0)));
-                $data = $this->buildData($range, $offset);
-                $data['req'] = (string) ($req['req'] ?? '');
-                $this->UpdateVisualizationValue(json_encode($data));
+                $reqId = (string) ($req['req'] ?? '');
+                try {
+                    $data = $this->getData($range, $offset, !empty($req['force']));
+                    $data['req'] = $reqId;
+                    $this->UpdateVisualizationValue($this->toJson($data));
+                } catch (Throwable $e) {
+                    $this->LogMessage('Trafo-Monitor: ' . $e->getMessage(), KL_ERROR);
+                    $this->UpdateVisualizationValue($this->toJson(['type' => 'error', 'req' => $reqId, 'message' => $e->getMessage()]));
+                }
                 break;
             default:
                 throw new Exception('Ungültiger Ident: ' . $Ident);
         }
     }
 
-    /** Sendet die aktuelle Tagesansicht an alle offenen Kacheln. */
+    /** Sendet die aktuelle Startansicht (neu berechnet) an alle offenen Kacheln. */
     public function Refresh()
     {
-        $data = $this->buildData(self::RANGES[$this->ReadPropertyInteger('DefaultRange')] ?? 'day', 0);
+        $data = $this->getData($this->defaultRange(), 0, true);
         $data['req'] = 'push';
-        $this->UpdateVisualizationValue(json_encode($data));
+        $this->UpdateVisualizationValue($this->toJson($data));
     }
 
+    /** Timer: Startansicht im Hintergrund vorbereiten (Zwischenspeicher). */
+    public function Prepare()
+    {
+        try {
+            $this->getData($this->defaultRange(), 0, true);
+        } catch (Throwable $e) {
+            $this->SendDebug('Prepare', $e->getMessage(), 0);
+        }
+    }
+
+    /**
+     * Liefert die Kachel sofort aus – ohne auf das Archiv zu warten. Liegt eine vorbereitete
+     * Startansicht im Zwischenspeicher, wird sie mitgegeben; sonst lädt die Kachel selbst nach.
+     */
     public function GetVisualizationTile()
     {
-        $html = file_get_contents(__DIR__ . '/module.html');
-        $data = $this->buildData(self::RANGES[$this->ReadPropertyInteger('DefaultRange')] ?? 'day', 0);
-        $data['req'] = 'init';
-        return $html . '<script>handleMessage(' . json_encode(json_encode($data)) . ');</script>';
+        $file = __DIR__ . '/module.html';
+        if (!is_file($file)) {
+            return '<div style="font:15px sans-serif;padding:4em 1.5em;color:#d93a3a">Trafo-Monitor: Die Datei <b>module.html</b> fehlt im Modulordner „TrafoMonitor“. Bitte im Repository ergänzen und das Modul aktualisieren.</div>';
+        }
+        $html = file_get_contents($file);
+        $cached = $this->readCache($this->defaultRange(), 0, 86400);
+        if ($cached === null) {
+            return $html;
+        }
+        $cached = array_merge($cached, $this->liveFields());
+        $cached['req'] = 'init';
+        return $html . '<script>handleMessage(' . json_encode($this->toJson($cached)) . ');</script>';
+    }
+
+    // ------------------------------------------------------------------ Zwischenspeicher
+
+    private function defaultRange(): string
+    {
+        return self::RANGES[$this->ReadPropertyInteger('DefaultRange')] ?? 'day';
+    }
+
+    /**
+     * Daten aus dem Zwischenspeicher oder neu berechnen.
+     * Laufender Zeitraum: max. 75 s alt · vergangene Zeiträume: max. 6 h alt.
+     */
+    private function getData(string $range, int $offset, bool $force = false): array
+    {
+        $maxAge = $offset === 0 ? 75 : 6 * 3600;
+        $data = $force ? null : $this->readCache($range, $offset, $maxAge);
+        if ($data === null) {
+            $t = microtime(true);
+            $data = $this->buildData($range, $offset);
+            $data['built'] = time();
+            $data['buildSeconds'] = round(microtime(true) - $t, 2);
+            $this->SendDebug('Archiv', sprintf('%s/%d berechnet in %.2f s', $range, $offset, $data['buildSeconds']), 0);
+            $this->writeCache($range, $offset, $data);
+        }
+        return array_merge($data, $this->liveFields());
+    }
+
+    private function readCache(string $range, int $offset, int $maxAge): ?array
+    {
+        $raw = $this->GetBuffer('C_' . $range . '_' . $offset);
+        if ($raw === '') {
+            return null;
+        }
+        $data = json_decode($raw, true);
+        if (!is_array($data) || (int) ($data['built'] ?? 0) < time() - $maxAge) {
+            return null;
+        }
+        return $data;
+    }
+
+    private function writeCache(string $range, int $offset, array $data): void
+    {
+        $key = 'C_' . $range . '_' . $offset;
+        $keys = json_decode($this->GetBuffer('CacheKeys'), true) ?: [];
+        $keys = array_values(array_diff($keys, [$key]));
+        $keys[] = $key;
+        while (count($keys) > 12) {                    // höchstens 12 Zeiträume merken
+            $this->SetBuffer(array_shift($keys), '');
+        }
+        $this->SetBuffer('CacheKeys', json_encode($keys));
+        $this->SetBuffer($key, $this->toJson($data));
+    }
+
+    /** Live-Werte werden nie zwischengespeichert. */
+    private function liveFields(): array
+    {
+        $l = $this->liveAll();
+        return ['live' => $l['values'], 'liveS' => $l['apparent'], 'liveQ' => $l['reactive'], 'now' => time()];
+    }
+
+    private function toJson(array $data): string
+    {
+        return (string) json_encode($data, JSON_PARTIAL_OUTPUT_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     // ------------------------------------------------------------------ Daten

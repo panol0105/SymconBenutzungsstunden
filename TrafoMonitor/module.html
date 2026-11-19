@@ -182,7 +182,7 @@
     <div class="meta"><span class="stand" id="stand"></span><span id="status"></span></div>
   </header>
 
-  <main id="main"><div class="empty">Warte auf Daten …</div></main>
+  <main id="main"><div class="empty" id="startMsg">Lade Daten aus dem Archiv …</div></main>
   <div id="tip"></div>
 
   <div id="info" class="modal" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
@@ -252,10 +252,17 @@
   }
 
   // ---------------------------------------------------------------- Kommunikation
-  function load() {
+  function load(force) {
     lastReq = clientId + '-' + (++reqNo);
     loading = true; renderStatus();
-    if (typeof requestAction === 'function') requestAction('Load', JSON.stringify({ range, offset, req: lastReq }));
+    if (typeof requestAction === 'function') requestAction('Load', JSON.stringify({ range, offset, req: lastReq, force: !!force }));
+  }
+
+  function showError(msg) {
+    loading = false; renderStatus();
+    const box = `<div class="empty" style="color:var(--err)">⚠ ${esc(msg)}</div>`;
+    if (!state) document.getElementById('main').innerHTML = box;
+    else { const c = document.getElementById('chart'); if (c) c.innerHTML = box; }
   }
 
   // Wird von Symcon bei UpdateVisualizationValue() und beim Laden aufgerufen
@@ -267,6 +274,7 @@
       if (state) { state.live = d.values; state.liveS = d.apparent; state.liveQ = d.reactive; state.liveTs = d.ts; renderKpis(); renderTable(); }
       return;
     }
+    if (d.type === 'error') { if (d.req === lastReq) showError(d.message || 'Unbekannter Fehler'); return; }
     if (d.type !== 'data') return;
     const accept = d.req === lastReq || (d.req === 'init' && !state) ||
       (d.req === 'push' && state && d.range === range && offset === 0);
@@ -307,6 +315,7 @@
   }
 
   function renderStatus() {
+    if (!state) { document.getElementById('status').innerHTML = loading ? '<span class="pill busy">lädt …</span>' : ''; return; }
     const errs = state ? state.trafos.filter(t => t.error).length : 0;
     let h = '';
     if (loading) h += '<span class="pill busy">lädt …</span> ';
@@ -612,10 +621,16 @@
   function hideTip() { tip.style.opacity = 0; }
 
   // ---------------------------------------------------------------- Bedienung
-  document.querySelectorAll('#ranges button').forEach(b => b.onclick = () => { range = b.dataset.r; offset = 0; render(); load(); });
+  document.querySelectorAll('#ranges button').forEach(b => b.onclick = () => {
+    range = b.dataset.r; offset = 0;
+    document.querySelectorAll('#ranges button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    load();
+  });
   document.getElementById('prev').onclick = () => { offset--; load(); };
   document.getElementById('next').onclick = () => { if (offset < 0) { offset++; load(); } };
-  document.getElementById('refresh').onclick = load;
+  document.getElementById('refresh').onclick = () => load(true);
+  // Start: ohne vorbereitete Daten selbst laden, veraltete Daten im Hintergrund auffrischen
+  setTimeout(() => { if (!state || (state.built && state.now - state.built > 75)) load(); }, 30);
   setInterval(() => { if (offset === 0 && state) load(); }, 60000);
 
   let lastFocus = null;

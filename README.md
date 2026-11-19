@@ -113,3 +113,8 @@ Instanz „TrafoMonitor“ anlegen, je Trafo eine Zeile:
 - Live-Werte bei jeder Änderung der Leistungsvariablen (max. 1×/s), Diagramme jede Minute
 
 Alle Daten kommen aus dem lokalen Archiv, keine Online-Abfragen.
+
+## Ladezeit
+Die Kachel wird sofort ausgeliefert; die Archivdaten werden danach im Hintergrund geladen („lädt …“).
+Die Startansicht bereitet das Modul jede Minute vor (Timer „Prepare“), vergangene Zeiträume werden 6 h zwischengespeichert.
+↻ in der Kachel erzwingt eine Neuberechnung. Die Rechenzeit je Zeitraum steht im Debug-Fenster („Archiv: day/0 berechnet in … s“).
