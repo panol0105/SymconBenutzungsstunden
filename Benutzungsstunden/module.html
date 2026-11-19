@@ -133,6 +133,32 @@
   .err { color: var(--err); font-size: .92em; display: flex; gap: .4em; }
   .empty { color: var(--ink-3); padding: 2em; text-align: center; grid-column: 1 / -1; }
 
+  /* Info-Popup */
+  .icon-btn.info { font-weight: 700; font-family: Georgia, serif; font-style: italic; }
+  #info { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center; padding: 1.2em; background: rgba(84,87,90,.35); }
+  #info.open { display: flex; }
+  #info .dlg { background: var(--card); color: var(--ink); border-radius: var(--radius); box-shadow: 0 10px 40px rgba(0,0,0,.18);
+    width: min(680px, 100%); max-height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+  #info .dlg-head { display: flex; align-items: center; gap: .6em; padding: 1em 1.3em .8em; border-bottom: 1px solid var(--line); }
+  #info .dlg-head h2 { margin: 0; font-size: 1.2em; font-weight: 700; }
+  #info .dlg-head .x { margin-left: auto; font: inherit; font-size: 1.3em; line-height: 1; background: var(--inset); border: 0; color: var(--ink-2); width: 1.8em; height: 1.8em; border-radius: 50%; cursor: pointer; }
+  #info .dlg-head .x:hover { color: var(--accent); }
+  button:focus { outline: none; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #info .dlg-body { padding: 1em 1.3em 1.3em; overflow-y: auto; line-height: 1.55; font-size: .95em; }
+  #info h3 { font-size: 1em; font-weight: 600; margin: 1.2em 0 .35em; color: var(--ink); }
+  #info h3:first-child { margin-top: 0; }
+  #info p { margin: 0 0 .6em; }
+  #info .formula { background: var(--accent-soft); color: var(--accent); border-radius: 10px; padding: .7em .9em; font-weight: 600; text-align: center; margin: .4em 0 .8em; }
+  #info .ex { background: var(--inset); border-radius: 10px; padding: .7em .9em; margin: .4em 0 .8em; }
+  #info table { font-size: .95em; margin: .3em 0 .8em; }
+  #info td, #info th { text-align: left; padding: .4em .6em; }
+  #info td:last-child, #info th:last-child { text-align: right; white-space: nowrap; }
+  #info ul { margin: .2em 0 .8em; padding-left: 1.2em; }
+  #info li { margin-bottom: .25em; }
+  #info .small { color: var(--ink-3); font-size: .85em; }
+  @media (max-width: 560px) { #info { padding: .5em; } #info .dlg-body, #info .dlg-head { padding-left: 1em; padding-right: 1em; } }
+
   #tip {
     position: fixed; pointer-events: none; background: #fff; color: var(--ink);
     border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.10);
@@ -179,6 +205,7 @@
     <div class="controls">
       <div class="years" id="years" role="group" aria-label="Jahr wählen"></div>
       <button class="icon-btn" id="refresh" title="Jetzt neu berechnen" aria-label="Neu berechnen">↻</button>
+      <button class="icon-btn info" id="infoBtn" title="Was sind Benutzungsstunden?" aria-label="Erklärung öffnen" aria-haspopup="dialog">i</button>
     </div>
     <div class="meta">
       <span class="stand" id="stand"></span>
@@ -187,6 +214,58 @@
   </header>
   <main id="cards"><div class="empty">Warte auf Daten …</div></main>
   <div id="tip"></div>
+
+  <div id="info" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+    <div class="dlg">
+      <div class="dlg-head"><h2 id="infoTitle">Was sind Benutzungsstunden?</h2><button class="x" id="infoClose" aria-label="Schließen">×</button></div>
+      <div class="dlg-body">
+        <h3>Kurz gesagt</h3>
+        <p>Die Benutzungsstunden zeigen, <b>wie gleichmäßig</b> der Betrieb über das Jahr Strom bezieht. Sie beantworten die Frage:
+          <i>Wie viele Stunden hätten wir mit unserer höchsten Leistung laufen müssen, um den ganzen Jahresverbrauch zu erreichen?</i></p>
+        <div class="formula">Benutzungsstunden = Jahresverbrauch (kWh) ÷ höchste Leistung (kW)</div>
+        <div class="ex"><b>Beispiel:</b> 15.000.000 kWh Jahresverbrauch ÷ 2.500 kW Spitze = <b>6.000 h/a</b>.<br>
+          Bei gleichem Verbrauch, aber einer Spitze von 3.000 kW, wären es nur 5.000 h/a.</div>
+
+        <h3>Wie liest man den Wert?</h3>
+        <p>Ein Jahr hat 8.760 Stunden. Würde der Betrieb rund um die Uhr exakt gleich viel Strom ziehen, kämen genau 8.760 h/a heraus –
+          das ist das theoretische Maximum. <b>Je höher der Wert, desto gleichmäßiger</b> ist der Verbrauch; ein niedriger Wert bedeutet
+          kurze, hohe Lastspitzen im Verhältnis zum Verbrauch.</p>
+        <table>
+          <tr><th>Betriebsweise (Faustwerte)</th><th>h/a</th></tr>
+          <tr><td>Ein-Schicht</td><td>2.000 – 3.000</td></tr>
+          <tr><td>Zwei-Schicht</td><td>3.500 – 4.500</td></tr>
+          <tr><td>Drei-Schicht, 5 Tage</td><td>5.000 – 6.000</td></tr>
+          <tr><td>Durchgehender Betrieb</td><td>6.000 – 7.500</td></tr>
+          <tr><td>Kontinuierliche Prozesse</td><td>über 7.000</td></tr>
+        </table>
+
+        <h3>Warum ist das wichtig?</h3>
+        <ul>
+          <li>Die <b>Netzentgelte</b> hängen stark von der höchsten Leistung (Viertelstunde mit dem höchsten Bezug) ab. Eine einzige hohe Spitze kann das ganze Jahr teurer machen.</li>
+          <li>Netzbetreiber unterscheiden meist zwischen <b>unter und über 2.500 h/a</b> – darüber gilt ein anderes Preismodell mit hohem Leistungs- und niedrigem Arbeitspreis.</li>
+          <li>Hohe Benutzungsstunden (über 7.000 h/a bei mehr als 10 GWh) konnten bisher zu Netzentgelt-Rabatten führen; diese Regeln werden derzeit neu gestaltet.</li>
+        </ul>
+
+        <h3>Was zeigt diese Kachel?</h3>
+        <ul>
+          <li><b>Großer Wert:</b> Benutzungsstunden des gewählten Jahres. „bisher“ = Stand heute im laufenden Jahr.</li>
+          <li><b>Hochrechnung:</b> geschätzter Wert für das ganze Jahr, wenn es so weiterläuft wie bisher.</li>
+          <li><b>Balken / Auslastung:</b> Anteil an den 8.760 Jahresstunden.</li>
+          <li><b>Energie:</b> verbrauchte Strommenge. <b>Bezugsleistung:</b> höchste Leistung mit Datum und Uhrzeit.</li>
+          <li><b>Jahre / Monate:</b> Vergleich der Jahre bzw. Verbrauch und Spitze je Monat – der Monat mit der Jahresspitze ist blau hervorgehoben.</li>
+          <li><b>Hinweise</b> (orange/rot) erscheinen bei unvollständigen Daten oder unplausiblen Werten.</li>
+        </ul>
+
+        <h3>Wie lässt sich der Wert verbessern?</h3>
+        <ul>
+          <li>Große Verbraucher <b>nicht gleichzeitig</b> einschalten (z. B. Anlagen nach Stillstand gestaffelt anfahren).</li>
+          <li>Lastspitzen erkennen: Datum und Uhrzeit der Bezugsleistung zeigen, wann die Spitze entstand.</li>
+          <li>Lastmanagement oder Speicher nutzen, um kurze Spitzen zu kappen.</li>
+        </ul>
+        <p class="small">Die Werte werden aus dem Symcon-Archiv berechnet. Maßgeblich für die Abrechnung sind die Messwerte des Netzbetreibers.</p>
+      </div>
+    </div>
+  </div>
 
 <script>
   let state = null;
@@ -349,6 +428,9 @@
     let notes = '';
     if (s.mode === 1 && y.resolution && y.resolution !== '1 min') notes += `<div class="note">Spitze aus ${y.resolution}-Mitteln (keine 1-min-Daten im Archiv).</div>`;
     if (s.mode === 0 && y.resolution === '60 min') notes += '<div class="note">Spitze aus Stundenmitteln (keine 5-min-Daten im Archiv) – die echte 15-min-Spitze kann etwas höher liegen.</div>';
+    if (!y.incomplete && y.dataStart && y.dataStart > new Date(y.year, 0, 2).getTime() / 1000) {
+      notes += `<div class="note">Daten ab ${fmtDate(y.dataStart)} – die Tage davor fehlen im Archiv (innerhalb der Toleranz, Einfluss auf den Wert gering).</div>`;
+    }
     if (y.incomplete && y.forecastHours == null) notes += '<div class="note">Für eine Hochrechnung auf das ganze Jahr sind mindestens 14 Tage Daten nötig.</div>';
     const tag = y.incomplete ? 'unvollständig' : (running ? 'bisher' : '');
     const fcLabel = y.incomplete ? `Hochrechnung auf ${selectedYear}` : `Hochrechnung ${selectedYear}`;
@@ -509,6 +591,15 @@
     hit.style.cursor = it.click ? 'pointer' : 'default';
     hit.addEventListener('click', () => { tip.style.opacity = 0; if (it.click) it.click(); });
   }
+
+  // Info-Popup
+  const info = document.getElementById('info');
+  const openInfo = () => { info.classList.add('open'); document.getElementById('infoClose').focus(); };
+  const closeInfo = () => { info.classList.remove('open'); document.getElementById('infoBtn').focus(); };
+  document.getElementById('infoBtn').onclick = openInfo;
+  document.getElementById('infoClose').onclick = closeInfo;
+  info.addEventListener('click', e => { if (e.target === info) closeInfo(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && info.classList.contains('open')) closeInfo(); });
 
   document.getElementById('refresh').onclick = () => {
     if (typeof requestAction === 'function') requestAction('Refresh', true);

@@ -40,6 +40,9 @@ class Benutzungsstunden extends IPSModule
         $this->RegisterPropertyInteger('UpdateInterval', 60);
         $this->RegisterPropertyBoolean('ShowForecast', true);
         $this->RegisterPropertyBoolean('DetectIncomplete', true);
+        $this->RegisterPropertyInteger('IncompleteTolerance', 14);
+        // Datenlücke zu Jahresbeginn bis zu diesem Tag ignorieren (z. B. Produktionsstart 06.01.2026)
+        $this->RegisterPropertyString('IgnoreGapUntil', '{"year":2026,"month":1,"day":6}');
 
         $this->RegisterAttributeString('Cache', '{}');
         $this->RegisterAttributeString('Result', '{}');
@@ -328,7 +331,13 @@ class Benutzungsstunden extends IPSModule
         // Unvollständig: Logging mindestens eines Zählers begann erst mehr als einen Tag nach Jahresbeginn.
         // Maßgeblich ist der Logging-Beginn, nicht der erste Verbrauch (Standby ohne Zähleränderung zählt als Daten).
         $dataStart = $this->ReadPropertyBoolean('DetectIncomplete') ? $this->loggingStartInYear($archiveID, $src['Meters'], $start, $end) : null;
-        $incomplete = $dataStart !== null && $dataStart > $start + 86400;
+        $ignoreUntil = $this->ignoreGapUntil();
+        if ($dataStart !== null && $ignoreUntil >= $start && $ignoreUntil < $yearEnd && $dataStart < $ignoreUntil + 86400) {
+            $dataStart = null;   // bekannte Lücke (z. B. vor Produktionsstart) – Jahr gilt als vollständig
+        }
+        // Kleine Lücken am Jahresanfang (z. B. Stillstand ohne Archivwerte) bis zur Toleranz nur als Hinweis
+        $toleranceSec = max(0, $this->ReadPropertyInteger('IncompleteTolerance')) * 86400;
+        $incomplete = $dataStart !== null && $dataStart > $start + max(86400, $toleranceSec);
         if ($incomplete) {
             foreach ($monthList as &$ml) {
                 $ml['d'] = mktime(0, 0, 0, $ml['m'] + 1, 1, $year) > $dataStart && mktime(0, 0, 0, $ml['m'], 1, $year) + 86400 >= $dataStart;
@@ -435,6 +444,16 @@ class Benutzungsstunden extends IPSModule
             $latest = $latest === null ? $first : max($latest, $first);
         }
         return $latest;
+    }
+
+    /** Tag aus der Einstellung „Datenlücke ignorieren bis“ (0 = nicht gesetzt). */
+    private function ignoreGapUntil(): int
+    {
+        $d = json_decode($this->ReadPropertyString('IgnoreGapUntil'), true);
+        if (!is_array($d) || (int) ($d['year'] ?? 0) < 2000) {
+            return 0;
+        }
+        return mktime(0, 0, 0, (int) $d['month'], (int) $d['day'], (int) $d['year']);
     }
 
     /** Zeitpunkt, ab dem alle Zähler Daten liefern (null, wenn ein Zähler im Zeitraum gar keine Daten hat). */

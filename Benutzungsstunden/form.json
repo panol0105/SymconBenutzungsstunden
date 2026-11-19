@@ -215,6 +215,28 @@
                     "type": "CheckBox",
                     "name": "DetectIncomplete",
                     "caption": "Unvollständige Jahre kennzeichnen (Logging-Beginn nach 1. Januar)"
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "IncompleteTolerance",
+                    "caption": "Toleranz fehlender Tage am Jahresanfang",
+                    "suffix": " Tage",
+                    "minimum": 0,
+                    "maximum": 180
+                }
+            ]
+        },
+        {
+            "type": "RowLayout",
+            "items": [
+                {
+                    "type": "SelectDate",
+                    "name": "IgnoreGapUntil",
+                    "caption": "Datenlücke zu Jahresbeginn ignorieren bis (z. B. Produktionsstart)"
+                },
+                {
+                    "type": "Label",
+                    "caption": "Fehlende Werte vom 1. Januar bis zu diesem Tag führen nicht zur Meldung „unvollständig“. Gilt nur für das Jahr des gewählten Datums."
                 }
             ]
         },

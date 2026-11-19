@@ -41,11 +41,16 @@ Die Auswertung läuft fortlaufend ab dem **Startjahr** (Standard 2025) bis zum l
 Das Modul prüft je Zähler, ob das **Logging** schon vor dem 1. Januar lief (Standby-Zeiten ohne Zähleränderung zählen als Daten).
 Beginnt das Logging eines Zählers erst im Laufe des Jahres (z. B. seit 28.12.2025),
 wird das Jahr als **unvollständig** gekennzeichnet (grau, Hinweis mit Datenbeginn) und nicht in die Vorjahres-Variable geschrieben.
+Fehlen am Jahresanfang nur wenige Tage (Einstellung **Toleranz**, Standard 14 Tage – z. B. Stillstand ohne Archivwerte), erscheint nur ein grauer Hinweis „Daten ab …“.
 Ab 14 Tagen Daten wird zusätzlich auf das Gesamtjahr hochgerechnet. Abschaltbar über „Unvollständige Jahre kennzeichnen“.
+Bekannte Lücken zu Jahresbeginn (z. B. vor Produktionsstart) lassen sich über **„Datenlücke zu Jahresbeginn ignorieren bis“** ausblenden (voreingestellt: 06.01.2026; gilt nur für das Jahr des Datums).
 
 ## Monatsansicht
 Umschalter „Jahre / Monate“ in der Kachel: Energie je Monat und Leistungsspitze je Monat; der Monat der Jahresspitze ist hervorgehoben.
 Der Jahreswert bleibt die maßgebliche Kennzahl (Jahresenergie ÷ höchste Spitze des Jahres).
+
+## Info-Button
+Das „i“ in der Kachel öffnet ein Popup, das Benutzungsstunden, typische Werte, die Bedeutung für Netzentgelte und die Kachelinhalte für Laien erklärt.
 
 ## Nur lokal
 Das Modul macht zur Laufzeit keinerlei Online-Abfragen: Daten kommen ausschließlich aus dem lokalen Symcon-Archiv, die Kachel lädt keine externen Schriften, Skripte oder Bilder.
