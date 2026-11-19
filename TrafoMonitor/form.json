@@ -80,7 +80,7 @@
                     }
                 },
                 {
-                    "caption": "Blindleistung (var, optional)",
+                    "caption": "Blindleistung (var, mit Vorzeichen, optional)",
                     "name": "ReactiveVariable",
                     "width": "220px",
                     "add": 0,
@@ -92,6 +92,34 @@
                     "caption": "Faktor Blind → kvar",
                     "name": "ReactiveFactor",
                     "width": "140px",
+                    "add": 0.001,
+                    "edit": {
+                        "type": "NumberSpinner",
+                        "digits": 4
+                    }
+                },
+                {
+                    "caption": "Blindarbeit induktiv (varh, optional)",
+                    "name": "QEnergyVariable",
+                    "width": "230px",
+                    "add": 0,
+                    "edit": {
+                        "type": "SelectVariable"
+                    }
+                },
+                {
+                    "caption": "Blindarbeit kapazitiv (varh, optional)",
+                    "name": "QEnergyCapVariable",
+                    "width": "230px",
+                    "add": 0,
+                    "edit": {
+                        "type": "SelectVariable"
+                    }
+                },
+                {
+                    "caption": "Faktor Blindarbeit → kvarh",
+                    "name": "QEnergyFactor",
+                    "width": "170px",
                     "add": 0.001,
                     "edit": {
                         "type": "NumberSpinner",
@@ -156,12 +184,21 @@
                     "type": "CheckBox",
                     "name": "Live",
                     "caption": "Live-Aktualisierung bei Wertänderung"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "InvertReactive",
+                    "caption": "Vorzeichen Blindleistung umkehren (wenn induktiv negativ geliefert wird)"
                 }
             ]
         },
         {
             "type": "Label",
             "caption": "Auslastung = Scheinleistung ÷ Nennleistung (kVA). Ohne Scheinleistung vereinfacht Wirkleistung ÷ Nennleistung (cos φ ≈ 1). cos φ = Wirkleistung ÷ Scheinleistung."
+        },
+        {
+            "type": "Label",
+            "caption": "Blindleistung mit Vorzeichen: + = induktiv, − = kapazitiv. Damit wird der Gesamt-cos φ vektoriell berechnet (ΣP ÷ √(ΣP² + ΣQ²)). Blindarbeitszähler (Archiv: „Zähler“) liefern den Abrechnungs-cos φ je Zeitraum."
         }
     ],
     "actions": [

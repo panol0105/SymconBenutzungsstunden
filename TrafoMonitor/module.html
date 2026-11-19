@@ -202,6 +202,12 @@
         <h3>cos φ (Leistungsfaktor)</h3>
         <p>Anteil der Wirkleistung an der Scheinleistung (Wirk ÷ Schein). <b>1,00</b> wäre ideal. Grün ab 0,95, orange ab 0,90, rot darunter –
           unter 0,9 berechnen viele Netzbetreiber zusätzlich Blindarbeit. Ein sinkender Wert kann auf eine gestörte Kompensationsanlage hindeuten.</p>
+        <h3>Abrechnungs-cos φ und Blindarbeit</h3>
+        <p>Der Netzbetreiber bewertet nicht den Momentanwert, sondern das Verhältnis von <b>Blindarbeit (kvarh)</b> zu <b>Wirkarbeit (kWh)</b> im Abrechnungszeitraum.
+          Üblich ist: Blindarbeit bis 50 % der Wirkarbeit ist frei (entspricht cos φ ≈ 0,9), darüber wird sie berechnet. Die Ansicht <b>cos φ</b> zeigt diesen Wert je Stunde, Tag oder Monat;
+          rote Balken liegen unter 0,9. Die genauen Bedingungen stehen im Preisblatt deines Netzbetreibers.</p>
+        <p><b>Gesamt-cos φ:</b> Liefern alle Trafos die Blindleistung mit Vorzeichen (+ induktiv, − kapazitiv), wird er vektoriell berechnet – kapazitive und induktive Anteile heben sich dabei auf.
+          „kap.“ kennzeichnet einen überkompensierten Trafo.</p>
         <h3>Auslastung</h3>
         <p>Scheinleistung im Verhältnis zur Nennleistung des Trafos. Grün bis 80 %, orange ab 80 %, rot ab 95 %.
           Die Ansicht <b>Auslastung</b> im Diagramm zeigt den Verlauf mit beiden Grenzlinien.</p>
@@ -303,7 +309,7 @@
         </section>
         <section class="card chart-card">
           <div class="card-head">
-            <span class="seg small" id="modes"><button data-m="power">Leistung</button>${state.trafos.some(t => t.nominal > 0) ? '<button data-m="load">Auslastung</button>' : ''}<button data-m="energy">Wirkarbeit</button></span>
+            <span class="seg small" id="modes"><button data-m="power">Leistung</button>${state.trafos.some(t => t.nominal > 0) ? '<button data-m="load">Auslastung</button>' : ''}<button data-m="energy">Wirkarbeit</button>${hasQE() ? '<button data-m="pf">cos φ</button>' : ''}</span>
             <span class="right" id="chartInfo"></span>
           </div>
           <div class="legend" id="legend"></div>
@@ -331,6 +337,7 @@
   const pfCls = v => v >= 0.95 ? 'lvl-ok' : v >= 0.9 ? 'lvl-warn' : 'lvl-err';
   const PF = v => v == null ? '–' : nf2.format(v);
   const KVA = v => v == null ? ['–', ''] : (Math.abs(v) >= 1000 ? [nf2.format(v / 1000), 'MVA'] : [Math.abs(v) >= 100 ? nf0.format(v) : nf1.format(v), 'kVA']);
+  const KVARH = v => v == null ? ['–', ''] : (Math.abs(v) >= 1e6 ? [nf2.format(v / 1e6), 'Gvarh'] : Math.abs(v) >= 1000 ? [nf2.format(v / 1000), 'Mvarh'] : [nf0.format(v), 'kvarh']);
   const KVAR = v => v == null ? ['–', ''] : (Math.abs(v) >= 1000 ? [nf2.format(v / 1000), 'Mvar'] : [Math.abs(v) >= 100 ? nf0.format(v) : nf1.format(v), 'kvar']);
   const pNow = i => (state.live || [])[i];
   const sNow = i => (state.liveS || [])[i];
@@ -338,8 +345,32 @@
   const pfNow = i => { const p = pNow(i), sv = sNow(i); return p != null && sv > 0 ? Math.min(1, Math.abs(p) / sv) : null; };
   const qNow = i => { const q = (state.liveQ || [])[i]; if (q != null) return q; const p = pNow(i), sv = sNow(i); return p != null && sv != null ? Math.sqrt(Math.max(0, sv * sv - p * p)) : null; };
   const hasAnyS = () => state.trafos.some(t => t.hasS && !t.error);
-  function pfTotalNow() { let P = 0, S = 0; state.trafos.forEach((t, i) => { if (!t.error && sNow(i) > 0 && pNow(i) != null) { P += Math.abs(pNow(i)); S += sNow(i); } }); return S > 0 ? Math.min(1, P / S) : null; }
-  function pfTotalAvg() { let P = 0, S = 0; state.trafos.forEach(t => { if (!t.error && t.savg > 0 && t.avg != null) { P += t.avg; S += t.savg; } }); return S > 0 ? Math.min(1, P / S) : null; }
+  // Gesamt-cos φ: vektoriell ΣP ÷ √(ΣP² + ΣQ²), wenn alle Trafos Blindleistung mit Vorzeichen liefern – sonst Näherung ΣP ÷ ΣS
+  const signedQ = i => (state.liveQ || [])[i] != null;
+  const allSigned = () => state.trafos.every((t, i) => t.error || signedQ(i));
+  const vecPf = (P, Q) => (P === 0 && Q === 0) ? null : Math.abs(P) / Math.sqrt(P * P + Q * Q);
+  function pfTotalNow() {
+    let P = 0, S = 0, Q = 0;
+    state.trafos.forEach((t, i) => { if (t.error || pNow(i) == null) return; P += pNow(i); if (sNow(i) > 0) S += sNow(i); if (signedQ(i)) Q += (state.liveQ || [])[i]; });
+    if (allSigned()) return vecPf(P, Q);
+    return S > 0 ? Math.min(1, Math.abs(P) / S) : null;
+  }
+  function pfTotalAvg() {
+    const ok = state.trafos.filter(t => !t.error);
+    if (ok.length && ok.every(t => t.qavg != null && t.avg != null)) return vecPf(ok.reduce((a, t) => a + t.avg, 0), ok.reduce((a, t) => a + t.qavg, 0));
+    let P = 0, S = 0; ok.forEach(t => { if (t.savg > 0 && t.avg != null) { P += t.avg; S += t.savg; } }); return S > 0 ? Math.min(1, P / S) : null;
+  }
+  // Abrechnungs-cos φ aus Wirk- und Blindarbeit (induktiv)
+  const hasQE = () => state.trafos.some(t => t.hasQE && !t.error);
+  function billing(idxs, ts) {
+    let W = 0, Wq = 0, Wc = 0;
+    idxs.forEach(i => { const t = state.trafos[i]; if (t.error || !t.hasQE) return;
+      if (ts == null) { W += t.energy || 0; Wq += t.qenergy || 0; Wc += t.qcenergy || 0; }
+      else { const f = a => (a.find(b => b[0] === ts) || [0, 0])[1]; W += f(t.bars); Wq += f(t.qbars); Wc += f(t.qcbars); } });
+    // induktive und kapazitive Blindarbeit heben sich am gemeinsamen Anschluss teilweise auf (Näherung je Intervall)
+    const Wn = Wq - Wc;
+    return { W, Wq, Wc, Wn, pf: W > 0 ? W / Math.sqrt(W * W + Wn * Wn) : null, excess: Math.max(0, Wn - 0.5 * W) };
+  }
 
   function renderKpis() {
     const el = document.getElementById('kpis'); if (!el) return;
@@ -368,9 +399,12 @@
         <div class="k-val">${(p => `<b>${p[0]}</b><span class="u">${p[1]}</span>`)(P(state.sum.peak))}</div>
         <div class="k-sub">${state.sum.peakTime ? (range === 'year' ? new Date(state.sum.peakTime * 1000).toLocaleDateString('de-DE') : fmtTime(state.sum.peakTime, range !== 'day')) : 'keine Daten'}${avg != null ? ' · Ø ' + tx(P(avg)) : ''}</div></section>
       ${hasAnyS() ? (() => { const pf = pfTotalNow(), pa = pfTotalAvg(), q = state.trafos.reduce((a, t, i) => a + (!t.error && qNow(i) != null ? qNow(i) : 0), 0);
-        return `<section class="card kpi"><div class="k-lbl"><span>cos φ gesamt</span><span>live</span></div>
-        <div class="k-val"><b class="${pf != null ? pfCls(pf) : ''}">${PF(pf)}</b></div>
-        <div class="k-sub">Ø ${rangeTxt} ${PF(pa)} · Blind ${tx(KVAR(q))}</div></section>`; })()
+        const b = hasQE() ? billing(state.trafos.map((t, i) => i)) : null;
+        return `<section class="card kpi"><div class="k-lbl"><span>cos φ gesamt</span><span>${allSigned() ? 'live · vektoriell' : 'live'}</span></div>
+        <div class="k-val"><b class="${pf != null ? pfCls(pf) : ''}">${PF(pf)}</b>${q < 0 && allSigned() ? '<span class="u">kap.</span>' : ''}</div>
+        <div class="k-sub">${b && b.pf != null
+          ? `Abrechnung ${rangeTxt}: <b class="${pfCls(b.pf)}">${PF(b.pf)}</b> · ${tx(KVARH(b.Wn))}${b.excess > 0 ? ` · <span class="lvl-err">${tx(KVARH(b.excess))} über Freigrenze</span>` : ''}`
+          : `Ø ${rangeTxt} ${PF(pa)} · Blind ${tx(KVAR(q))}`}</div></section>`; })()
       : `<section class="card kpi"><div class="k-lbl"><span>Ø Leistung</span><span>${rangeTxt}</span></div>
         <div class="k-val">${(p => `<b>${p[0]}</b><span class="u">${p[1]}</span>`)(P(avg))}</div>
         <div class="k-sub">${state.sum.peak && avg ? 'Spitze/Ø ' + nf2.format(state.sum.peak / avg) : '&nbsp;'}</div></section>`}`;
@@ -384,13 +418,14 @@
       if (t.error) return `<tr class="off"><td>${name}</td><td colspan="8" class="err-txt" style="text-align:left">⚠ ${esc(t.error)}</td></tr>`;
       const v = pNow(i), sv = sNow(i), pct = loadNow(i), pf = pfNow(i), q = qNow(i);
       const tt = [t.meter != null ? 'Zählerstand ' + tx(E(t.meter)) : '', q != null ? 'Blindleistung ' + tx(KVAR(q)) + ((state.liveQ || [])[i] == null ? ' (berechnet)' : '') : '',
-        t.nominal > 0 ? 'Nennleistung ' + tx(KVA(t.nominal)) : '', t.pf != null ? 'Ø cos φ im Zeitraum ' + PF(t.pf) : ''].filter(Boolean).join(' · ');
+        t.nominal > 0 ? 'Nennleistung ' + tx(KVA(t.nominal)) : '', t.pf != null ? 'Ø cos φ im Zeitraum ' + PF(t.pf) : '',
+        t.hasQE ? 'Blindarbeit ' + tx(KVARH(t.qenergy)) + (t.qcenergy ? ' ind. / ' + tx(KVARH(t.qcenergy)) + ' kap.' : '') + ' · Abrechnungs-cos φ ' + PF(billing([i]).pf) : ''].filter(Boolean).join(' · ');
       const mx = t.hasS ? KVA(t.smax) : P(t.max), mxT = t.hasS ? t.smaxTime : t.maxTime;
       return `<tr data-i="${i}" class="${hidden.has(i) ? 'off' : ''}" title="${esc(tt)}">
         <td>${name}</td>
         <td>${vu(P(v))}</td>
         <td class="col-opt2">${t.hasS ? vu(KVA(sv)) : '–'}</td>
-        <td class="${pf != null ? pfCls(pf) : ''}">${PF(pf)}</td>
+        <td class="${pf != null ? pfCls(pf) : ''}">${PF(pf)}${signedQ(i) && (state.liveQ || [])[i] < 0 ? '<span class="u">kap.</span>' : ''}</td>
         <td class="${pct != null ? lvl(pct) : ''}">${pct != null ? nf1.format(pct) + ' %' : '–'}</td>
         <td class="col-opt" title="${mxT ? fmtTime(mxT, true) : ''}">${vu(mx)}</td>
         <td>${vu(E(t.energy))}${t.energyFromPower ? '<span class="u" title="aus Leistung berechnet">*</span>' : ''}</td>
@@ -425,13 +460,17 @@
     const el = document.getElementById('legend'); if (!el) return;
     let h = state.trafos.map((t, i) => t.error ? '' :
       `<button class="chip ${hidden.has(i) ? 'off' : ''}" data-i="${i}"><span class="ln" style="background:${t.color}"></span>${esc(t.name)}</button>`).join('');
-    if (mode === 'power' && state.showSum) h += `<button class="chip ${sumOn ? '' : 'off'}" data-sum="1"><span class="ln" style="background:${SUM_COLOR};height:2px;border-top:1px dashed ${SUM_COLOR}"></span>Summe</button>`;
-    el.innerHTML = h;
-    el.querySelectorAll('.chip').forEach(c => c.onclick = () => { if (c.dataset.sum) { sumOn = !sumOn; renderLegend(); drawChart(); } else toggle(+c.dataset.i); });
+    if (mode === 'pf') { el.innerHTML = state.trafos.map((t, i) => t.error || !t.hasQE ? '' :
+      `<button class="chip ${hidden.has(i) ? 'off' : ''}" data-i="${i}"><span class="ln" style="background:${t.color}"></span>${esc(t.name)}</button>`).join('');
+      el.querySelectorAll('.chip').forEach(c => c.onclick = () => toggle(+c.dataset.i)); }
+    else if (mode === 'power' && state.showSum) h += `<button class="chip ${sumOn ? '' : 'off'}" data-sum="1"><span class="ln" style="background:${SUM_COLOR};height:2px;border-top:1px dashed ${SUM_COLOR}"></span>Summe</button>`;
+    if (mode !== 'pf') el.innerHTML = h;
+    if (mode !== 'pf') el.querySelectorAll('.chip').forEach(c => c.onclick = () => { if (c.dataset.sum) { sumOn = !sumOn; renderLegend(); drawChart(); } else toggle(+c.dataset.i); });
     const info = document.getElementById('chartInfo');
     const avgTxt = { day: 'Ø 5 min', week: 'Ø 1 h', month: 'Ø 1 h', year: 'Ø 1 Tag' }[range];
     if (info) info.textContent = mode === 'power' ? 'Wirkleistung · ' + avgTxt
       : mode === 'load' ? '% der Nennleistung · ' + avgTxt
+      : mode === 'pf' ? 'Abrechnungs-cos φ ' + { day: 'je Stunde', week: 'je Tag', month: 'je Tag', year: 'je Monat' }[range] + ' (Wirk- ÷ Scheinarbeit)'
       : { day: 'kWh je Stunde', week: 'kWh je Tag', month: 'kWh je Tag', year: 'kWh je Monat' }[range];
   }
 
@@ -463,7 +502,7 @@
     el.innerHTML = '';
     const W = el.clientWidth, H = el.clientHeight;
     if (W < 50 || H < 50) return;
-    if (mode === 'energy') drawBars(el, W, H); else drawLines(el, W, H);
+    if (mode === 'energy') drawBars(el, W, H); else if (mode === 'pf') drawPf(el, W, H); else drawLines(el, W, H);
   }
 
   function frame(W, H, maxV, unitFn) {
@@ -605,6 +644,60 @@
       };
       r.addEventListener('mousemove', show); r.addEventListener('touchstart', show, { passive: true });
       r.addEventListener('mouseleave', () => { hideTip(); r.setAttribute('fill', 'transparent'); });
+    });
+  }
+
+  // Abrechnungs-cos φ je Intervall: Summe der sichtbaren Trafos, Grenzlinien 0,90 / 0,95
+  function drawPf(el, W, H) {
+    const vis = visible().filter(i => state.trafos[i].hasQE);
+    const times = [...new Set(vis.flatMap(i => state.trafos[i].qbars.map(b => b[0])))].sort((a, b) => a - b);
+    if (!times.length) { el.innerHTML = '<div class="empty">Keine Blindarbeit im Zeitraum.</div>'; return; }
+    const vals = times.map(ts => billing(vis, ts));
+    const lo = Math.min(0.8, Math.floor(Math.min(...vals.filter(v => v.pf != null).map(v => v.pf), 1) * 20) / 20);
+    const f = frame(W, H, 1 - lo, v => nf2.format(lo + v));
+    const slots = range === 'day' ? 24 : range === 'week' ? 7 : range === 'month' ? new Date(new Date(state.start * 1000).getFullYear(), new Date(state.start * 1000).getMonth() + 1, 0).getDate() : 12;
+    const slotOf = ts => { const d = new Date(ts * 1000), s0 = new Date(state.start * 1000);
+      if (range === 'day') return d.getHours(); if (range === 'year') return d.getMonth();
+      return Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(s0.getFullYear(), s0.getMonth(), s0.getDate())) / 864e5); };
+    const step = (W - f.L - f.R) / slots, bw = Math.max(3, Math.min(40, step * 0.62));
+    const y = v => f.T + (H - f.T - f.B) * (1 - (v - lo) / (1 - lo));
+    let svg = f.grid;
+    [[0.9, 'var(--err)'], [0.95, 'var(--warn)']].forEach(([v, c]) => {
+      if (v <= lo) return;
+      svg += `<line x1="${f.L}" x2="${W - f.R}" y1="${y(v)}" y2="${y(v)}" stroke="${c}" stroke-width="1.2" stroke-dasharray="6 4" opacity=".8"/>`;
+      svg += `<text x="${W - f.R - 4}" y="${y(v) - 4}" text-anchor="end" style="fill:${c}">${nf2.format(v)}</text>`;
+    });
+    const every = Math.ceil(slots / Math.max(1, Math.floor((W - f.L) / 42)));
+    const s0 = new Date(state.start * 1000);
+    for (let k = 0; k < slots; k += every) {
+      let lbl; if (range === 'day') lbl = d2(k); else if (range === 'year') lbl = MON[k];
+      else { const t = new Date(s0.getFullYear(), s0.getMonth(), s0.getDate() + k); lbl = range === 'week' ? WD[t.getDay()] + ' ' + t.getDate() + '.' : String(t.getDate()); }
+      svg += `<text x="${f.L + step * (k + .5)}" y="${H - 6}" text-anchor="middle">${lbl}</text>`;
+    }
+    times.forEach((ts, n) => {
+      const v = vals[n]; if (v.pf == null) return;
+      const k = slotOf(ts); if (k < 0 || k >= slots) return;
+      const x0 = f.L + step * (k + .5) - bw / 2, top = y(Math.max(lo, v.pf)), base = H - f.B, h = Math.max(1, base - top), rr = Math.min(3, h, bw / 2);
+      const col = v.pf < 0.9 ? 'var(--err)' : 'var(--accent)';
+      svg += `<path d="M${x0},${base} V${top + rr} Q${x0},${top} ${x0 + rr},${top} H${x0 + bw - rr} Q${x0 + bw},${top} ${x0 + bw},${top + rr} V${base} Z" fill="${col}" opacity="${v.pf < 0.9 ? 1 : .85}"/>`;
+      svg += `<rect class="bh" data-n="${n}" x="${f.L + step * k}" y="0" width="${step}" height="${H}" fill="transparent"/>`;
+    });
+    el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Abrechnungs-cos φ">${svg}</svg>`;
+    el.querySelectorAll('.bh').forEach(rc => {
+      const n = +rc.dataset.n, ts = times[n], v = vals[n];
+      const show = ev => {
+        const d = new Date(ts * 1000);
+        const head = range === 'day' ? `${d2(d.getHours())}:00–${d2((d.getHours() + 1) % 24)}:00` : range === 'year' ? MON[d.getMonth()] + ' ' + d.getFullYear() : `${WD[d.getDay()]}, ${d.toLocaleDateString('de-DE')}`;
+        let rows = vis.map(i => { const b = billing([i], ts); return `<div class="tr"><span><span class="sq" style="background:${state.trafos[i].color}"></span>${esc(state.trafos[i].name)}</span><b class="${b.pf != null ? pfCls(b.pf) : ''}">${PF(b.pf)}</b></div>`; }).join('');
+        rows += `<div class="tr" style="border-top:1px solid var(--line);margin-top:.2em;padding-top:.2em"><span>Gesamt</span><b class="${pfCls(v.pf)}">${PF(v.pf)}</b></div>`;
+        rows += `<div class="tr"><span>Wirkarbeit</span><b>${tx(E(v.W))}</b></div><div class="tr"><span>Blindarbeit ind.</span><b>${tx(KVARH(v.Wq))}</b></div>`;
+        if (v.Wc) rows += `<div class="tr"><span>Blindarbeit kap.</span><b>${tx(KVARH(v.Wc))}</b></div>`;
+        if (v.excess > 0) rows += `<div class="tr lvl-err"><span>über Freigrenze (50 %)</span><b>${tx(KVARH(v.excess))}</b></div>`;
+        showTip(ev, `<div class="th">${head}</div>${rows}`);
+        rc.setAttribute('fill', 'rgba(0,117,187,0.06)');
+      };
+      rc.addEventListener('mousemove', show); rc.addEventListener('touchstart', show, { passive: true });
+      rc.addEventListener('mouseleave', () => { hideTip(); rc.setAttribute('fill', 'transparent'); });
     });
   }
 

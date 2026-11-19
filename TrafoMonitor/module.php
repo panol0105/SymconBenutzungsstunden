@@ -30,6 +30,7 @@ class TrafoMonitor extends IPSModule
         $this->RegisterPropertyInteger('DefaultRange', 0);
         $this->RegisterPropertyBoolean('ShowSum', true);
         $this->RegisterPropertyBoolean('Live', true);
+        $this->RegisterPropertyBoolean('InvertReactive', false);
 
         $this->RegisterTimer('Prepare', 0, 'TRM_Prepare($_IPS[\'TARGET\']);');
 
@@ -234,7 +235,8 @@ class TrafoMonitor extends IPSModule
         foreach ($this->getTrafos() as $t) {
             $p[] = $this->current($t['PowerVariable'], $t['PowerFactor']);
             $s[] = $this->current($t['ApparentVariable'], $t['ApparentFactor']);
-            $q[] = $this->current($t['ReactiveVariable'], $t['ReactiveFactor']);
+            $qv = $this->current($t['ReactiveVariable'], $t['ReactiveFactor']);
+            $q[] = $qv !== null && $this->ReadPropertyBoolean('InvertReactive') ? -$qv : $qv;
         }
         return ['values' => $p, 'apparent' => $s, 'reactive' => $q];
     }
@@ -334,7 +336,14 @@ class TrafoMonitor extends IPSModule
                 'smax'    => null,
                 'smaxTime' => 0,
                 'savg'    => null,
-                'pf'      => null    // mittlerer Leistungsfaktor im Zeitraum (Ø P ÷ Ø S)
+                'pf'      => null,   // mittlerer Leistungsfaktor im Zeitraum (Ø P ÷ Ø S)
+                'hasQ'    => $t['ReactiveVariable'] > 0,
+                'qavg'    => null,   // mittlere Blindleistung mit Vorzeichen (kvar)
+                'hasQE'   => $t['QEnergyVariable'] > 0 || $t['QEnergyCapVariable'] > 0,
+                'qbars'   => [],     // [ts, kvarh induktiv]
+                'qcbars'  => [],     // [ts, kvarh kapazitiv]
+                'qenergy' => 0.0,
+                'qcenergy' => 0.0
             ];
             if ($archive === 0 || $entry['error'] !== '' || $until <= $start) {
                 $out['trafos'][] = $entry;
@@ -414,6 +423,33 @@ class TrafoMonitor extends IPSModule
             usort($entry['bars'], function ($a, $b) {
                 return $a[0] <=> $b[0];
             });
+
+            // mittlere Blindleistung mit Vorzeichen (für vektoriellen Gesamt-cos φ)
+            if ($t['ReactiveVariable'] > 0) {
+                $qs = 0.0;
+                $qn = 0;
+                foreach ($this->agg($archive, $t['ReactiveVariable'], $barLevel, $start, $until) as $row) {
+                    $qs += (float) $row['Avg'] * $t['ReactiveFactor'];
+                    $qn++;
+                }
+                if ($qn > 0) {
+                    $entry['qavg'] = round(($this->ReadPropertyBoolean('InvertReactive') ? -1 : 1) * $qs / $qn, 2);
+                }
+            }
+            // Blindarbeit je Balkenintervall
+            foreach (['QEnergyVariable' => ['qbars', 'qenergy'], 'QEnergyCapVariable' => ['qcbars', 'qcenergy']] as $col => [$barsKey, $sumKey]) {
+                if ($t[$col] > 0) {
+                    foreach ($this->agg($archive, $t[$col], $barLevel, $start, $until) as $row) {
+                        $kvarh = round((float) $row['Avg'] * $t['QEnergyFactor'], 2);
+                        $entry[$barsKey][] = [(int) $row['TimeStamp'], $kvarh];
+                        $entry[$sumKey] += $kvarh;
+                    }
+                    usort($entry[$barsKey], function ($a, $b) {
+                        return $a[0] <=> $b[0];
+                    });
+                    $entry[$sumKey] = round($entry[$sumKey], 2);
+                }
+            }
             $entry['energy'] = round($entry['energy'], 2);
             $out['trafos'][] = $entry;
         }
@@ -487,6 +523,9 @@ class TrafoMonitor extends IPSModule
                 'ApparentFactor' => (float) (($row['ApparentFactor'] ?? 0.001) ?: 0.001),
                 'ReactiveVariable' => (int) ($row['ReactiveVariable'] ?? 0),
                 'ReactiveFactor' => (float) (($row['ReactiveFactor'] ?? 0.001) ?: 0.001),
+                'QEnergyVariable' => (int) ($row['QEnergyVariable'] ?? 0),
+                'QEnergyCapVariable' => (int) ($row['QEnergyCapVariable'] ?? 0),
+                'QEnergyFactor'  => (float) (($row['QEnergyFactor'] ?? 0.001) ?: 0.001),
                 'Nominal'        => (float) ($row['Nominal'] ?? 0),
                 'Color'          => (int) ($row['Color'] ?? -1)
             ];
@@ -517,6 +556,20 @@ class TrafoMonitor extends IPSModule
                 }
                 if (AC_GetAggregationType($archive, $id) !== 0) {
                     return $label . ' muss mit Aggregationstyp „Standard“ geloggt werden.';
+                }
+            }
+        }
+        foreach (['QEnergyVariable' => 'Blindarbeit induktiv', 'QEnergyCapVariable' => 'Blindarbeit kapazitiv'] as $col => $label) {
+            $id = $t[$col];
+            if ($id > 0) {
+                if (!IPS_VariableExists($id)) {
+                    return $label . ': Variable existiert nicht.';
+                }
+                if (!AC_GetLoggingStatus($archive, $id)) {
+                    return $label . ' wird nicht geloggt.';
+                }
+                if (AC_GetAggregationType($archive, $id) !== 1) {
+                    return $label . ' muss mit Aggregationstyp „Zähler“ geloggt werden.';
                 }
             }
         }

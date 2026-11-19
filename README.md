@@ -98,7 +98,8 @@ Instanz „TrafoMonitor“ anlegen, je Trafo eine Zeile:
 | Faktor Leistung → kW | W → 0,001 · kW → 1 |
 | Wirkarbeit | Energiezähler (Archiv: „Zähler“), optional – ohne Zähler wird aus der Leistung integriert |
 | Scheinleistung (VA) | optional – für richtige Auslastung (S ÷ S_Nenn) und cos φ = P ÷ S; Faktor VA → kVA: 0,001 |
-| Blindleistung (var) | optional – ohne Variable wird Q = √(S² − P²) berechnet; Faktor var → kvar: 0,001 |
+| Blindleistung (var) | optional, **mit Vorzeichen** (+ induktiv, − kapazitiv) – ermöglicht den vektoriellen Gesamt-cos φ = ΣP ÷ √(ΣP² + ΣQ²); ohne Variable Näherung ΣP ÷ ΣS. Faktor var → kvar: 0,001 |
+| Blindarbeit induktiv / kapazitiv (varh) | optional, Zähler – für den Abrechnungs-cos φ je Stunde/Tag/Monat; Faktor varh → kvarh: 0,001 |
 | Faktor Energie → kWh | Wh → 0,001 · kWh → 1 |
 | Nennleistung [kVA] | für die Auslastung (mit Scheinleistung: S ÷ S_Nenn, sonst vereinfacht P ÷ S_Nenn) |
 
@@ -109,6 +110,8 @@ Instanz „TrafoMonitor“ anlegen, je Trafo eine Zeile:
 - **Leistung / Auslastung / Wirkarbeit**: Auslastung in % mit Grenzlinien 80 %/95 %; Linienverlauf (Ø 5 min / 1 h / 1 Tag) bzw. gestapelte Balken je Stunde / Tag / Monat
 - Klick auf Trafo in Tabelle oder Legende blendet ihn aus/ein; „Summe“-Linie zuschaltbar
 - Tooltip mit allen Werten; Info-Button erklärt Wirkleistung/Wirkarbeit für Laien
+- **cos φ**-Ansicht (mit Blindarbeitszählern): Abrechnungs-cos φ = Wirkarbeit ÷ √(Wirkarbeit² + Blindarbeit²) je Intervall, Grenzlinien 0,90/0,95,
+  Tooltip mit Blindarbeit und Menge über der üblichen Freigrenze (50 % der Wirkarbeit). Induktive und kapazitive Blindarbeit werden verrechnet.
 - Kennzahlen: Leistung aktuell (live), Wirkarbeit, Spitze (höchste gleichzeitige Summe), Ø Leistung
 - Live-Werte bei jeder Änderung der Leistungsvariablen (max. 1×/s), Diagramme jede Minute
 
