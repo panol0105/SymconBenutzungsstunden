@@ -1,4 +1,12 @@
-# Benutzungsstunden (IP-Symcon)
+# Benutzungsstunden & Trafo-Monitor (IP-Symcon)
+
+Die Bibliothek enthält zwei Module:
+- **Benutzungsstunden** – Benutzungsstunden pro Jahr (Jahresenergie ÷ Bezugsleistung)
+- **Trafo-Monitor** – Wirkleistung (live + Verlauf) und Wirkarbeit je Trafo
+
+---
+
+# Modul Benutzungsstunden
 
 Berechnet die **Benutzungsstunden pro Jahr** je Energieart des Gebäudes und zeigt sie als Kachel in der Tile-Visualisierung.
 
@@ -73,3 +81,31 @@ Das Modul macht zur Laufzeit keinerlei Online-Abfragen: Daten kommen ausschließ
 ## PHP-Funktionen
 - `BNS_Update(int $InstanzID)` – neu berechnen (laufendes Jahr)
 - `BNS_RecalculateAll(int $InstanzID)` – Cache löschen, alle Jahre neu berechnen
+
+
+---
+
+# Modul Trafo-Monitor
+
+Kachel für die Tile-Visu im gleichen Stil: Wirkleistung und Wirkarbeit mehrerer Trafos.
+
+## Einrichtung
+Instanz „Trafo-Monitor“ anlegen, je Trafo eine Zeile:
+
+| Feld | Inhalt |
+|---|---|
+| Wirkleistung | Leistungsvariable (Archiv: Aggregationstyp „Standard“) |
+| Faktor Leistung → kW | W → 0,001 · kW → 1 |
+| Wirkarbeit | Energiezähler (Archiv: „Zähler“), optional – ohne Zähler wird aus der Leistung integriert |
+| Faktor Energie → kWh | Wh → 0,001 · kWh → 1 |
+| Nennleistung [kVA] | für die Auslastung (vereinfacht kW ÷ kVA) |
+
+## Bedienung in der Kachel
+- **Heute / Woche / Monat / Jahr** und **‹ ›** zum Blättern
+- **Leistung / Wirkarbeit**: Linienverlauf (Ø 5 min / 1 h / 1 Tag) bzw. gestapelte Balken je Stunde / Tag / Monat
+- Klick auf Trafo in Tabelle oder Legende blendet ihn aus/ein; „Summe“-Linie zuschaltbar
+- Tooltip mit allen Werten; Info-Button erklärt Wirkleistung/Wirkarbeit für Laien
+- Kennzahlen: Leistung aktuell (live), Wirkarbeit, Spitze (höchste gleichzeitige Summe), Ø Leistung
+- Live-Werte bei jeder Änderung der Leistungsvariablen (max. 1×/s), Diagramme jede Minute
+
+Alle Daten kommen aus dem lokalen Archiv, keine Online-Abfragen.

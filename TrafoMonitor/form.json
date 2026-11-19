@@ -1,0 +1,57 @@
+{
+    "elements": [
+        {
+            "type": "Label",
+            "caption": "Zeigt Wirkleistung (live und Verlauf) und Wirkarbeit je Trafo als Kachel. Leistungsvariablen im Archiv mit Aggregationstyp „Standard“, Energiezähler mit „Zähler“ loggen. Ohne Energiezähler wird die Wirkarbeit aus der Leistung berechnet."
+        },
+        {
+            "type": "List",
+            "name": "Trafos",
+            "caption": "Trafos",
+            "rowCount": 6,
+            "add": true,
+            "delete": true,
+            "changeOrder": true,
+            "columns": [
+                { "caption": "Name", "name": "Name", "width": "140px", "add": "Trafo", "edit": { "type": "ValidationTextBox" } },
+                { "caption": "Wirkleistung", "name": "PowerVariable", "width": "auto", "add": 0, "edit": { "type": "SelectVariable" } },
+                { "caption": "Faktor Leistung → kW", "name": "PowerFactor", "width": "150px", "add": 0.001, "edit": { "type": "NumberSpinner", "digits": 4 } },
+                { "caption": "Wirkarbeit (Zähler, optional)", "name": "EnergyVariable", "width": "220px", "add": 0, "edit": { "type": "SelectVariable" } },
+                { "caption": "Faktor Energie → kWh", "name": "EnergyFactor", "width": "150px", "add": 0.001, "edit": { "type": "NumberSpinner", "digits": 4 } },
+                { "caption": "Nennleistung [kVA]", "name": "Nominal", "width": "130px", "add": 0, "edit": { "type": "NumberSpinner", "digits": 0, "suffix": " kVA" } },
+                { "caption": "Farbe", "name": "Color", "width": "80px", "add": -1, "edit": { "type": "SelectColor", "allowTransparent": true } }
+            ]
+        },
+        {
+            "type": "RowLayout",
+            "items": [
+                {
+                    "type": "Select",
+                    "name": "DefaultRange",
+                    "caption": "Startansicht",
+                    "options": [
+                        { "caption": "Heute", "value": 0 },
+                        { "caption": "Woche", "value": 1 },
+                        { "caption": "Monat", "value": 2 },
+                        { "caption": "Jahr", "value": 3 }
+                    ]
+                },
+                { "type": "CheckBox", "name": "ShowSum", "caption": "Summenlinie anzeigen" },
+                { "type": "CheckBox", "name": "Live", "caption": "Live-Aktualisierung bei Wertänderung" }
+            ]
+        },
+        {
+            "type": "Label",
+            "caption": "Faktoren: Leistung in W → 0,001 · in kW → 1. Zähler in Wh → 0,001 · in kWh → 1. Die Auslastung wird vereinfacht als kW ÷ kVA (cos φ ≈ 1) berechnet."
+        }
+    ],
+    "actions": [
+        { "type": "Button", "caption": "Kachel aktualisieren", "onClick": "TRM_Refresh($id);" }
+    ],
+    "status": [
+        { "code": 102, "icon": "active", "caption": "Aktiv" },
+        { "code": 104, "icon": "inactive", "caption": "Keine Trafos konfiguriert" },
+        { "code": 201, "icon": "error", "caption": "Kein Archiv gefunden" },
+        { "code": 202, "icon": "error", "caption": "Mindestens ein Trafo ist fehlerhaft konfiguriert (siehe Kachel/Meldungen)" }
+    ]
+}

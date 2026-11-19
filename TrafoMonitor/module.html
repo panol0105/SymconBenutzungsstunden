@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --ink: rgb(84, 87, 90);            /* Schriftfarbe */
+    --ink-2: rgba(84, 87, 90, 0.78);
+    --ink-3: rgba(84, 87, 90, 0.58);
+    --bg: rgb(240, 240, 240);          /* Hintergrund */
+    --card: #ffffff;
+    --inset: rgb(240, 243, 247);
+    --line: rgba(84, 87, 90, 0.12);
+    --accent: rgb(0, 117, 187);        /* Effekte */
+    --accent-soft: rgba(0, 117, 187, 0.10);
+    --accent-mid: rgba(0, 117, 187, 0.30);
+    --ok: #1a9f45; --warn: #e07b00; --err: #d93a3a;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: Poppins, "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    background: var(--bg); color: var(--ink);
+    font-size: clamp(11px, 1.5vw, 14px);
+    display: flex; flex-direction: column; overflow: hidden;
+    font-variant-numeric: tabular-nums;
+  }
+  button { font: inherit; }
+  button:focus { outline: none; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Kopfzeile (Titel zeigt Symcon) */
+  header { display: flex; align-items: center; gap: .6em 1em; padding: 3.4em 3.4em .9em 1.4em; flex-wrap: wrap; }
+  .controls { display: flex; align-items: center; gap: .6em; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; }
+  .meta { display: flex; align-items: center; gap: .6em; flex-wrap: wrap; margin-left: auto; }
+  .stand { color: var(--ink-3); font-size: .9em; }
+  .pill { display: inline-flex; align-items: center; gap: .35em; font-size: .88em; font-weight: 500; padding: .35em .8em; border-radius: 999px; background: rgba(26,159,69,.10); color: var(--ok); white-space: nowrap; }
+  .pill::before { content: ""; width: .45em; height: .45em; border-radius: 50%; background: currentColor; }
+  .pill.live::before { animation: blink 2s infinite; }
+  .pill.busy { background: var(--accent-soft); color: var(--accent); }
+  .pill.busy::before { animation: blink 1s infinite; }
+  .pill.err { background: rgba(217,58,58,.10); color: var(--err); }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  .seg { display: inline-flex; gap: 2px; background: var(--card); border-radius: 999px; padding: 3px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .seg button { font-size: .9em; color: var(--ink-2); background: none; border: 0; border-radius: 999px; padding: .35em .9em; cursor: pointer; white-space: nowrap; }
+  .seg button:hover { color: var(--accent); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .seg.small { background: var(--inset); box-shadow: none; padding: 2px; }
+  .seg.small button { font-size: .85em; padding: .2em .75em; }
+  .seg.small button[aria-pressed="true"] { background: var(--card); color: var(--accent); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .nav { display: inline-flex; align-items: center; gap: .2em; background: var(--card); border-radius: 999px; padding: 3px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .nav button { background: none; border: 0; color: var(--ink); width: 2em; height: 2em; border-radius: 50%; cursor: pointer; font-size: 1.35em; line-height: 1; font-weight: 600; }
+  .nav button:hover:not(:disabled) { color: var(--accent); background: var(--accent-soft); }
+  .nav button:disabled { opacity: .3; cursor: default; }
+  .nav .lbl { padding: 0 .5em; font-size: .9em; white-space: nowrap; min-width: 8em; text-align: center; }
+  .icon-btn { background: var(--card); border: 0; color: var(--ink-2); border-radius: 50%; width: 2.2em; height: 2.2em; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .icon-btn:hover { color: var(--accent); }
+  .icon-btn.info { font-weight: 700; font-family: Georgia, serif; font-style: italic; }
+
+  /* Raster */
+  main { flex: 1 1 auto; overflow-y: auto; padding: 0 1.4em 1.4em; display: flex; flex-direction: column; gap: 1.1em; }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.1em; }
+  .row2 { flex: 1 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 1.1em; min-height: 320px; }
+  .card { background: var(--card); border-radius: var(--radius); padding: 1.1em 1.3em 1.2em; display: flex; flex-direction: column; gap: .8em; min-width: 0; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .card-head { display: flex; align-items: center; gap: .6em; flex-wrap: wrap; }
+  .card-head h2 { font-size: 1.05em; font-weight: 600; margin: 0; }
+  .card-head .right { margin-left: auto; color: var(--ink-2); font-size: .9em; }
+
+  /* Kennzahlen */
+  .kpi .k-lbl { display: flex; justify-content: space-between; gap: .5em; font-size: .92em; font-weight: 500; color: var(--ink); }
+  .kpi .k-lbl span:last-child { color: var(--ink-3); font-weight: 400; font-size: .92em; text-align: right; }
+  .kpi .k-val { display: flex; align-items: baseline; gap: .3em; flex-wrap: wrap; }
+  .kpi .k-val b { font-size: clamp(1.9em, 3.4vw, 2.9em); font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; }
+  .kpi .k-val .u { font-size: 1.1em; font-weight: 600; color: var(--ink-2); }
+  .kpi .k-sub { font-size: .82em; color: var(--ink-3); }
+  .kpi.hero .k-val b { color: var(--accent); }
+  .meter .bar { position: relative; height: 10px; border-radius: 5px; background: var(--inset); overflow: hidden; display: flex; gap: 2px; }
+  .meter .bar i { display: block; height: 100%; }
+  .meter .bar i:first-child { border-radius: 5px 0 0 5px; }
+
+  /* Tabelle */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .93em; }
+  thead th { background: var(--inset); font-weight: 500; font-size: .86em; text-align: right; padding: .55em .6em; white-space: nowrap; }
+  thead th:first-child { text-align: left; border-radius: 8px 0 0 8px; }
+  thead th:last-child { border-radius: 0 8px 8px 0; }
+  tbody td { padding: .6em .6em; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  tbody td:first-child { text-align: left; }
+  tbody tr { cursor: pointer; transition: background .12s, opacity .12s; }
+  tbody tr:hover { background: var(--accent-soft); }
+  tbody tr.off { opacity: .4; }
+  tfoot td { padding: .6em .6em; text-align: right; font-weight: 600; background: var(--inset); white-space: nowrap; }
+  tfoot td:first-child { text-align: left; border-radius: 8px 0 0 8px; }
+  tfoot td:last-child { border-radius: 0 8px 8px 0; }
+  td .u { font-size: .75em; color: var(--ink-3); margin-left: .2em; font-weight: 400; }
+  .name-cell { display: inline-flex; align-items: center; gap: .55em; }
+  .sq { width: .75em; height: .75em; border-radius: 3px; flex: none; }
+  .err-txt { color: var(--err); font-size: .85em; white-space: normal; }
+  .lvl-ok { color: var(--ok); } .lvl-warn { color: var(--warn); } .lvl-err { color: var(--err); }
+  .hint { font-size: .8em; color: var(--ink-3); }
+
+  /* Diagramm */
+  .chart-card { min-height: 300px; }
+  .legend { display: flex; gap: .4em; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: .4em; font-size: .82em; color: var(--ink-2); background: var(--inset); border: 0; border-radius: 999px; padding: .25em .7em; cursor: pointer; }
+  .chip.off { opacity: .45; text-decoration: line-through; }
+  .chip .ln { width: 1em; height: 3px; border-radius: 2px; }
+  .chart { flex: 1 1 0; min-height: 200px; position: relative; overflow: hidden; }
+  .chart svg { display: block; position: absolute; inset: 0; }
+  .chart text { fill: var(--ink-3); font-size: 11px; font-family: inherit; }
+  .empty { color: var(--ink-3); padding: 2em; text-align: center; }
+
+  #tip { position: fixed; pointer-events: none; background: #fff; color: var(--ink); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.10);
+    padding: .5em .75em; border-radius: 8px; font-size: .85em; line-height: 1.5; white-space: nowrap; opacity: 0; transition: opacity .1s; z-index: 10; }
+  #tip .tr { display: flex; align-items: center; gap: .5em; justify-content: space-between; }
+  #tip .tr span:first-child { display: inline-flex; align-items: center; gap: .4em; }
+  #tip .tr b { font-weight: 600; }
+  #tip .th { font-weight: 600; margin-bottom: .2em; }
+
+  /* Popup */
+  .modal { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center; padding: 3.6em 3.4em 1.2em 1.2em; background: rgba(84,87,90,.35); }
+  .modal.open { display: flex; }
+  .modal .dlg { background: var(--card); border-radius: var(--radius); box-shadow: 0 10px 40px rgba(0,0,0,.18); width: min(680px, 100%); max-height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+  .modal .dlg-head { display: flex; align-items: center; gap: .6em; padding: 1em 1.3em .8em; border-bottom: 1px solid var(--line); }
+  .modal .dlg-head h2 { margin: 0; font-size: 1.2em; font-weight: 700; }
+  .modal .x { margin-left: auto; font-size: 1.3em; line-height: 1; background: var(--inset); border: 0; color: var(--ink-2); width: 2.2em; height: 2.2em; border-radius: 50%; cursor: pointer; flex: none; }
+  .modal .dlg-body { padding: 1em 1.3em 1.3em; overflow-y: auto; line-height: 1.55; font-size: .95em; }
+  .modal h3 { font-size: 1em; font-weight: 600; margin: 1.1em 0 .35em; }
+  .modal h3:first-child { margin-top: 0; }
+  .modal p { margin: 0 0 .6em; }
+  .modal ul { margin: .2em 0 .8em; padding-left: 1.2em; }
+  .modal li { margin-bottom: .25em; }
+  .modal .ex { background: var(--inset); border-radius: 10px; padding: .7em .9em; margin: .4em 0 .8em; }
+  .modal .dlg-foot { padding: .8em 1.3em; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; }
+  .modal .btn-close { font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 999px; padding: .55em 1.6em; cursor: pointer; }
+
+  /* ---------- Responsive ---------- */
+  @media (min-width: 1101px) and (max-width: 1600px) { .col-spark { display: none; } }
+  @media (max-width: 1100px) {
+    .row2 { grid-template-columns: 1fr; }
+    .chart-card { min-height: 340px; }
+  }
+  @media (max-width: 860px) {
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .col-opt { display: none; }
+  }
+  @media (max-width: 720px) {
+    header { padding: 3.2em 3em .7em 1.1em; }
+    main { padding: 0 1.1em 1.1em; gap: .9em; }
+    .kpis { gap: .9em; }
+  }
+  @media (max-width: 560px) {
+    body { font-size: 13px; }
+    header { padding: 3em 2.8em .6em 1em; gap: .5em; }
+    .stand, .col-opt2 { display: none; }
+    .meta { margin-left: 0; }
+    .card { padding: 1em; }
+    .nav .lbl { min-width: 0; }
+    .modal { padding: 3.2em .5em .5em; }
+    .modal .btn-close { width: 100%; }
+  }
+  @media (max-width: 380px) {
+    .kpis { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="controls">
+      <div class="seg" id="ranges" role="group" aria-label="Zeitraum">
+        <button data-r="day">Heute</button><button data-r="week">Woche</button><button data-r="month">Monat</button><button data-r="year">Jahr</button>
+      </div>
+      <div class="nav">
+        <button id="prev" aria-label="Zurück">‹</button><span class="lbl" id="plabel">–</span><button id="next" aria-label="Weiter">›</button>
+      </div>
+      <button class="icon-btn" id="refresh" title="Aktualisieren" aria-label="Aktualisieren">↻</button>
+      <button class="icon-btn info" id="infoBtn" title="Erklärung" aria-label="Erklärung öffnen">i</button>
+    </div>
+    <div class="meta"><span class="stand" id="stand"></span><span id="status"></span></div>
+  </header>
+
+  <main id="main"><div class="empty">Warte auf Daten …</div></main>
+  <div id="tip"></div>
+
+  <div id="info" class="modal" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+    <div class="dlg">
+      <div class="dlg-head"><h2 id="infoTitle">Wirkleistung und Wirkarbeit</h2><button class="x" data-close aria-label="Schließen">×</button></div>
+      <div class="dlg-body">
+        <h3>Wirkleistung (kW / MW)</h3>
+        <p>Die <b>Wirkleistung</b> ist die Leistung, die in diesem Moment tatsächlich genutzt wird – vergleichbar mit der Geschwindigkeit eines Autos.
+          Sie zeigt, wie stark die Trafos <b>jetzt gerade</b> belastet sind.</p>
+        <h3>Wirkarbeit (kWh / MWh)</h3>
+        <p>Die <b>Wirkarbeit</b> ist die Energiemenge, die über einen Zeitraum verbraucht wurde – vergleichbar mit der gefahrenen Strecke.
+          Sie bestimmt die Stromrechnung (Arbeitspreis).</p>
+        <div class="ex"><b>Beispiel:</b> Läuft ein Trafo eine Stunde lang mit 500 kW, beträgt die Wirkarbeit 500 kWh.</div>
+        <h3>Auslastung</h3>
+        <p>Verhältnis der aktuellen Leistung zur Nennleistung des Trafos. Grün bis 80 %, orange ab 80 %, rot ab 95 %.
+          Vereinfacht wird kW ÷ kVA gerechnet (Blindleistung bleibt unberücksichtigt).</p>
+        <h3>Bedienung</h3>
+        <ul>
+          <li><b>Heute / Woche / Monat / Jahr</b> wählt den Zeitraum, mit <b>‹ ›</b> blätterst du zurück und vor.</li>
+          <li><b>Leistung / Wirkarbeit</b> schaltet das Diagramm zwischen Verlauf und Verbrauch je Stunde, Tag oder Monat um.</li>
+          <li>Ein Klick auf einen <b>Trafo in der Tabelle</b> oder in der Legende blendet ihn im Diagramm aus oder ein.</li>
+          <li>Mit der Maus über dem Diagramm (oder Tippen) erscheinen die genauen Werte.</li>
+          <li>Die Werte „aktuell“ aktualisieren sich live, die Diagramme jede Minute.</li>
+        </ul>
+        <h3>Spitze</h3>
+        <p>Die <b>Spitze</b> ist die höchste gleichzeitige Summenleistung im Zeitraum (gemittelt über 5 Minuten bei „Heute“, über 1 Stunde bei Woche/Monat, über 1 Tag beim Jahr).
+          In der Tabelle zeigt <b>Max</b> den höchsten Einzelwert je Trafo.</p>
+      </div>
+      <div class="dlg-foot"><button class="btn-close" data-close>Schließen</button></div>
+    </div>
+  </div>
+
+<script>
+  // ---------------------------------------------------------------- Zustand
+  let state = null;           // letzte Daten vom Server
+  let range = null, offset = 0;
+  let mode = 'power';         // 'power' | 'energy'
+  const hidden = new Set();   // ausgeblendete Trafos (Index)
+  let sumOn = true;
+  let loading = false;
+  const clientId = Math.random().toString(36).slice(2, 8);
+  let reqNo = 0, lastReq = '';
+
+  const SUM_COLOR = 'rgb(84, 87, 90)';
+  const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+  const nf1 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+  const nf2 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+  const P = kw => kw == null ? ['–', ''] : (Math.abs(kw) >= 1000 ? [nf2.format(kw / 1000), 'MW'] : [Math.abs(kw) >= 100 ? nf0.format(kw) : nf1.format(kw), 'kW']);
+  const E = kwh => kwh == null ? ['–', ''] : (kwh >= 1e6 ? [nf2.format(kwh / 1e6), 'GWh'] : kwh >= 1000 ? [nf2.format(kwh / 1000), 'MWh'] : [nf0.format(kwh), 'kWh']);
+  const vu = p => `${p[0]}<span class="u">${p[1]}</span>`;
+  const tx = p => p[0] + ' ' + p[1];
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const d2 = n => String(n).padStart(2, '0');
+  function fmtTime(ts, withDate) {
+    const d = new Date(ts * 1000);
+    const t = d2(d.getHours()) + ':' + d2(d.getMinutes());
+    return withDate ? `${d2(d.getDate())}.${d2(d.getMonth() + 1)}. ${t}` : t;
+  }
+
+  // ---------------------------------------------------------------- Kommunikation
+  function load() {
+    lastReq = clientId + '-' + (++reqNo);
+    loading = true; renderStatus();
+    if (typeof requestAction === 'function') requestAction('Load', JSON.stringify({ range, offset, req: lastReq }));
+  }
+
+  // Wird von Symcon bei UpdateVisualizationValue() und beim Laden aufgerufen
+  function handleMessage(raw) {
+    let d;
+    try { d = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return; }
+    if (!d) return;
+    if (d.type === 'live') {
+      if (state) { state.live = d.values; state.liveTs = d.ts; renderKpis(); renderTable(); }
+      return;
+    }
+    if (d.type !== 'data') return;
+    const accept = d.req === lastReq || (d.req === 'init' && !state) ||
+      (d.req === 'push' && state && d.range === range && offset === 0);
+    if (!accept) return;
+    state = d; range = d.range; offset = d.offset; loading = false;
+    if (!state.showSum) sumOn = false;
+    render();
+  }
+
+  // ---------------------------------------------------------------- Aufbau
+  function render() {
+    document.querySelectorAll('#ranges button').forEach(b => b.setAttribute('aria-pressed', b.dataset.r === range));
+    document.getElementById('plabel').textContent = state.label;
+    document.getElementById('next').disabled = offset >= 0;
+    document.getElementById('stand').textContent = 'Stand ' + fmtTime(state.now, true);
+    renderStatus();
+
+    const main = document.getElementById('main');
+    if (!state.trafos.length) { main.innerHTML = '<div class="empty">Keine Trafos konfiguriert.</div>'; return; }
+    main.innerHTML = `
+      <div class="kpis" id="kpis"></div>
+      <div class="row2">
+        <section class="card">
+          <div class="card-head"><h2>Energieverteilung · Trafos</h2><span class="right hint">Klick blendet im Diagramm aus</span></div>
+          <div class="tbl-wrap" id="tbl"></div>
+        </section>
+        <section class="card chart-card">
+          <div class="card-head">
+            <span class="seg small" id="modes"><button data-m="power">Leistung</button><button data-m="energy">Wirkarbeit</button></span>
+            <span class="right" id="chartInfo"></span>
+          </div>
+          <div class="legend" id="legend"></div>
+          <div class="chart" id="chart"></div>
+        </section>
+      </div>`;
+    document.querySelectorAll('#modes button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.m === mode); b.onclick = () => { mode = b.dataset.m; render(); }; });
+    renderKpis(); renderTable(); renderLegend(); drawChart();
+  }
+
+  function renderStatus() {
+    const errs = state ? state.trafos.filter(t => t.error).length : 0;
+    let h = '';
+    if (loading) h += '<span class="pill busy">lädt …</span> ';
+    if (errs) h += `<span class="pill err">${errs} Trafo${errs > 1 ? 's' : ''} prüfen</span>`;
+    else if (state && offset === 0) h += '<span class="pill live">Live</span>';
+    document.getElementById('status').innerHTML = h;
+  }
+
+  const visible = () => state.trafos.map((t, i) => i).filter(i => !hidden.has(i) && !state.trafos[i].error);
+  const liveSum = () => (state.live || []).reduce((a, v, i) => a + (v != null && !state.trafos[i].error ? v : 0), 0);
+  const nomSum = () => state.trafos.reduce((a, t) => a + (t.nominal || 0), 0);
+  const lvl = pct => pct >= 95 ? 'lvl-err' : pct >= 80 ? 'lvl-warn' : 'lvl-ok';
+
+  function renderKpis() {
+    const el = document.getElementById('kpis'); if (!el) return;
+    const live = liveSum(), nom = nomSum();
+    const energy = state.trafos.reduce((a, t) => a + (t.energy || 0), 0);
+    const sl = state.sum.line;
+    const avg = sl.length ? sl.reduce((a, p) => a + p[1], 0) / sl.length : null;
+    const res = { day: 'Ø 5 min', week: 'Ø 1 h', month: 'Ø 1 h', year: 'Ø 1 Tag' }[range];
+    const rangeTxt = { day: offset === 0 ? 'heute' : 'am Tag', week: 'in der Woche', month: 'im Monat', year: 'im Jahr' }[range];
+    // gestapelter Balken: Anteil je Trafo an der Nennleistung
+    let meter = '';
+    if (nom > 0) {
+      meter = `<div class="meter"><div class="bar">${state.trafos.map((t, i) => {
+        const v = (state.live || [])[i]; return v > 0 && !t.error ? `<i style="width:${Math.min(100, v / nom * 100)}%;background:${t.color}"></i>` : ''; }).join('')}</div></div>`;
+    }
+    el.innerHTML = `
+      <section class="card kpi hero"><div class="k-lbl"><span>Leistung aktuell</span><span>${nom > 0 ? nf1.format(live / nom * 100) + ' % von ' + tx(P(nom)).replace('W', 'VA') : ''}</span></div>
+        <div class="k-val">${(p => `<b>${p[0]}</b><span class="u">${p[1]}</span>`)(P(live))}</div>${meter}
+        <div class="k-sub">Summe ${state.trafos.length} Trafos · live</div></section>
+      <section class="card kpi"><div class="k-lbl"><span>Wirkarbeit</span><span>${rangeTxt}</span></div>
+        <div class="k-val">${(p => `<b>${p[0]}</b><span class="u">${p[1]}</span>`)(E(energy))}</div>
+        <div class="k-sub">${state.label}</div></section>
+      <section class="card kpi"><div class="k-lbl"><span>Spitze</span><span>${res}</span></div>
+        <div class="k-val">${(p => `<b>${p[0]}</b><span class="u">${p[1]}</span>`)(P(state.sum.peak))}</div>
+        <div class="k-sub">${state.sum.peakTime ? (range === 'year' ? new Date(state.sum.peakTime * 1000).toLocaleDateString('de-DE') : fmtTime(state.sum.peakTime, range !== 'day')) : 'keine Daten'}</div></section>
+      <section class="card kpi"><div class="k-lbl"><span>Ø Leistung</span><span>${rangeTxt}</span></div>
+        <div class="k-val">${(p => `<b>${p[0]}</b><span class="u">${p[1]}</span>`)(P(avg))}</div>
+        <div class="k-sub">${state.sum.peak && avg ? 'Spitze/Ø ' + nf2.format(state.sum.peak / avg) : '&nbsp;'}</div></section>`;
+  }
+
+  function renderTable() {
+    const el = document.getElementById('tbl'); if (!el) return;
+    const total = state.trafos.reduce((a, t) => a + (t.energy || 0), 0);
+    const rows = state.trafos.map((t, i) => {
+      const name = `<span class="name-cell"><span class="sq" style="background:${t.color}"></span>${esc(t.name)}</span>`;
+      if (t.error) return `<tr class="off"><td>${name}</td><td colspan="7" class="err-txt" style="text-align:left">⚠ ${esc(t.error)}</td></tr>`;
+      const v = (state.live || [])[i];
+      const pct = t.nominal > 0 && v != null ? v / t.nominal * 100 : null;
+      return `<tr data-i="${i}" class="${hidden.has(i) ? 'off' : ''}" title="${t.meter != null ? 'Zählerstand ' + tx(E(t.meter)) : ''}">
+        <td>${name}</td>
+        <td>${vu(P(v))}</td>
+        <td class="col-opt2">${t.nominal > 0 ? vu([nf0.format(t.nominal), 'kVA']) : '–'}</td>
+        <td class="${pct != null ? lvl(pct) : ''}">${pct != null ? nf1.format(pct) + ' %' : '–'}</td>
+        <td class="col-opt" title="${t.maxTime ? fmtTime(t.maxTime, true) : ''}">${vu(P(t.max))}</td>
+        <td>${vu(E(t.energy))}${t.energyFromPower ? '<span class="u" title="aus Leistung berechnet">*</span>' : ''}</td>
+        <td class="col-opt2">${total > 0 ? nf1.format(t.energy / total * 100) + ' %' : '–'}</td>
+        <td class="col-opt col-spark">${spark(t)}</td>
+      </tr>`;
+    }).join('');
+    const live = liveSum(), nom = nomSum();
+    const fromPower = state.trafos.some(t => t.energyFromPower);
+    el.innerHTML = `<table>
+      <thead><tr><th>Trafo</th><th>Leistung</th><th class="col-opt2">Nenn</th><th>Auslastung</th><th class="col-opt">Max</th><th>Wirkarbeit</th><th class="col-opt2">Anteil</th><th class="col-opt col-spark">Verlauf</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td>Summe</td><td>${vu(P(live))}</td><td class="col-opt2">${nom > 0 ? vu([nf0.format(nom), 'kVA']) : '–'}</td>
+        <td>${nom > 0 ? nf1.format(live / nom * 100) + ' %' : '–'}</td><td class="col-opt">${vu(P(state.sum.peak))}</td>
+        <td>${vu(E(total))}</td><td class="col-opt2">100 %</td><td class="col-opt col-spark"></td></tr></tfoot>
+    </table>${fromPower ? '<div class="hint" style="margin-top:.5em">* Wirkarbeit aus der Leistung berechnet (kein Zähler hinterlegt)</div>' : ''}`;
+    el.querySelectorAll('tbody tr[data-i]').forEach(tr => tr.onclick = () => toggle(+tr.dataset.i));
+  }
+
+  function spark(t) {
+    const pts = t.line; if (!pts || pts.length < 2) return '';
+    const W = 80, H = 22, max = Math.max(1, ...pts.map(p => p[1]));
+    const x0 = state.start, x1 = state.end;
+    const d = pts.map((p, k) => (k ? 'L' : 'M') + ((p[0] - x0) / (x1 - x0) * W).toFixed(1) + ',' + (H - 2 - p[1] / max * (H - 4)).toFixed(1)).join(' ');
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="vertical-align:middle" aria-hidden="true"><path d="${d}" fill="none" stroke="${t.color}" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+  }
+
+  function renderLegend() {
+    const el = document.getElementById('legend'); if (!el) return;
+    let h = state.trafos.map((t, i) => t.error ? '' :
+      `<button class="chip ${hidden.has(i) ? 'off' : ''}" data-i="${i}"><span class="ln" style="background:${t.color}"></span>${esc(t.name)}</button>`).join('');
+    if (mode === 'power') h += `<button class="chip ${sumOn ? '' : 'off'}" data-sum="1"><span class="ln" style="background:${SUM_COLOR};height:2px;border-top:1px dashed ${SUM_COLOR}"></span>Summe</button>`;
+    el.innerHTML = h;
+    el.querySelectorAll('.chip').forEach(c => c.onclick = () => { if (c.dataset.sum) { sumOn = !sumOn; renderLegend(); drawChart(); } else toggle(+c.dataset.i); });
+    const info = document.getElementById('chartInfo');
+    if (info) info.textContent = mode === 'power'
+      ? { day: 'kW · Ø 5 min', week: 'kW · Ø 1 h', month: 'kW · Ø 1 h', year: 'kW · Ø 1 Tag' }[range]
+      : { day: 'kWh je Stunde', week: 'kWh je Tag', month: 'kWh je Tag', year: 'kWh je Monat' }[range];
+  }
+
+  function toggle(i) {
+    if (hidden.has(i)) hidden.delete(i); else hidden.add(i);
+    renderTable(); renderLegend(); drawChart();
+  }
+
+  // ---------------------------------------------------------------- Diagramme
+  function niceMax(v) {
+    if (v <= 0) return 1;
+    const p = Math.pow(10, Math.floor(Math.log10(v)));
+    const n = v / p;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+  }
+
+  function xTicks() {
+    const s = state.start, e = state.end, out = [];
+    const d = new Date(s * 1000);
+    if (range === 'day') { for (let h = 0; h <= 24; h += 3) out.push([s + h * 3600, d2(h % 24) + ':00']); }
+    else if (range === 'week') { for (let k = 0; k < 7; k++) { const t = new Date(d.getFullYear(), d.getMonth(), d.getDate() + k); out.push([t / 1000, WD[t.getDay()] + ' ' + t.getDate() + '.']); } }
+    else if (range === 'month') { for (let k = 1; k <= 31; k += (k === 1 ? 4 : 5)) { const t = new Date(d.getFullYear(), d.getMonth(), k); if (t / 1000 < e) out.push([t / 1000, k + '.']); } }
+    else { for (let k = 0; k < 12; k++) out.push([new Date(d.getFullYear(), k, 1) / 1000, MON[k]]); }
+    return out;
+  }
+
+  function drawChart() {
+    const el = document.getElementById('chart'); if (!el) return;
+    el.innerHTML = '';
+    const W = el.clientWidth, H = el.clientHeight;
+    if (W < 50 || H < 50) return;
+    if (mode === 'power') drawLines(el, W, H); else drawBars(el, W, H);
+  }
+
+  function frame(W, H, maxV, unitFn) {
+    // linker Rand passend zur längsten Achsenbeschriftung
+    const L = 12 + Math.max(...[0, 1, 2, 3, 4].map(k => unitFn(maxV * k / 4).length)) * 6.4, R = 8, T = 10, B = 22;
+    const ticks = 4, out = [];
+    for (let k = 0; k <= ticks; k++) {
+      const v = maxV * k / ticks, y = T + (H - T - B) * (1 - k / ticks);
+      out.push(`<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="rgba(84,87,90,${k ? .10 : .25})" ${k ? 'stroke-dasharray="3 3"' : ''}/>`);
+      out.push(`<text x="${L - 6}" y="${y + 4}" text-anchor="end">${unitFn(v)}</text>`);
+    }
+    return { L, R, T, B, grid: out.join('') };
+  }
+
+  function axisFmtP(maxV) { return maxV >= 2000 ? v => nf1.format(v / 1000).replace(/,0$/, '') + ' MW' : v => nf0.format(v) + ' kW'; }
+  function axisFmtE(maxV) { return maxV >= 2000 ? v => nf1.format(v / 1000).replace(/,0$/, '') + ' MWh' : v => nf0.format(v) + ' kWh'; }
+
+  function drawLines(el, W, H) {
+    const vis = visible();
+    const series = vis.map(i => ({ i, t: state.trafos[i], pts: state.trafos[i].line }));
+    if (sumOn && state.sum.line.length) {
+      // Summe nur über die sichtbaren Trafos
+      const m = new Map();
+      series.forEach(s => s.pts.forEach(p => m.set(p[0], (m.get(p[0]) || 0) + p[1])));
+      series.push({ i: -1, t: { name: 'Summe', color: SUM_COLOR }, pts: [...m.entries()].sort((a, b) => a[0] - b[0]), sum: true });
+    }
+    const all = series.flatMap(s => s.pts.map(p => p[1]));
+    if (!all.length) { el.innerHTML = '<div class="empty">Keine Daten im Zeitraum.</div>'; return; }
+    const maxV = niceMax(Math.max(...all) * 1.05);
+    const f = frame(W, H, maxV, axisFmtP(maxV));
+    const x = ts => f.L + (ts - state.start) / (state.end - state.start) * (W - f.L - f.R);
+    const y = v => f.T + (H - f.T - f.B) * (1 - v / maxV);
+    const gap = state.lineStep * 1.5;
+    let svg = f.grid;
+    xTicks().forEach(([ts, lbl]) => { if (ts <= state.end) svg += `<text x="${x(ts)}" y="${H - 6}" text-anchor="middle">${lbl}</text>`; });
+    series.forEach(s => {
+      let d = '', prev = null;
+      s.pts.forEach(p => { d += (prev === null || p[0] - prev > gap ? 'M' : 'L') + x(p[0]).toFixed(1) + ',' + y(p[1]).toFixed(1) + ' '; prev = p[0]; });
+      svg += `<path d="${d}" fill="none" stroke="${s.t.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" ${s.sum ? 'stroke-dasharray="5 4"' : ''}/>`;
+    });
+    // Jetzt-Markierung
+    if (state.now < state.end) svg += `<line x1="${x(state.now)}" x2="${x(state.now)}" y1="${f.T}" y2="${H - f.B}" stroke="var(--accent)" stroke-opacity=".35" stroke-dasharray="2 3"/>`;
+    svg += `<line id="xh" x1="0" x2="0" y1="${f.T}" y2="${H - f.B}" stroke="var(--ink)" stroke-opacity=".35" visibility="hidden"/><g id="dots"></g>`;
+    svg += `<rect id="hit" x="${f.L}" y="0" width="${W - f.L - f.R}" height="${H}" fill="transparent"/>`;
+    el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Leistungsverlauf">${svg}</svg>`;
+
+    // Fadenkreuz + Tooltip
+    const times = [...new Set(series.flatMap(s => s.pts.map(p => p[0])))].sort((a, b) => a - b);
+    const idx = series.map(s => new Map(s.pts.map(p => [p[0], p[1]])));
+    const hit = el.querySelector('#hit'), xh = el.querySelector('#xh'), dots = el.querySelector('#dots');
+    const move = ev => {
+      const r = el.getBoundingClientRect();
+      const cx = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+      const ts = state.start + (cx - f.L) / (W - f.L - f.R) * (state.end - state.start);
+      let best = null, bd = Infinity;
+      for (const t of times) { const dd = Math.abs(t - ts); if (dd < bd) { bd = dd; best = t; } }
+      if (best === null) return;
+      xh.setAttribute('x1', x(best)); xh.setAttribute('x2', x(best)); xh.setAttribute('visibility', 'visible');
+      let rows = '', dh = '';
+      series.forEach((s, k) => {
+        const v = idx[k].get(best); if (v == null) return;
+        dh += `<circle cx="${x(best)}" cy="${y(v)}" r="4" fill="${s.t.color}" stroke="#fff" stroke-width="2"/>`;
+        rows += `<div class="tr"><span><span class="sq" style="background:${s.t.color}"></span>${esc(s.t.name)}</span><b>${tx(P(v))}</b></div>`;
+      });
+      dots.innerHTML = dh;
+      const head = range === 'year' ? new Date(best * 1000).toLocaleDateString('de-DE') : fmtTime(best, range !== 'day');
+      showTip(ev, `<div class="th">${head}</div>${rows}`);
+    };
+    hit.addEventListener('mousemove', move); hit.addEventListener('touchstart', move, { passive: true }); hit.addEventListener('touchmove', move, { passive: true });
+    hit.addEventListener('mouseleave', () => { hideTip(); xh.setAttribute('visibility', 'hidden'); dots.innerHTML = ''; });
+  }
+
+  function drawBars(el, W, H) {
+    const vis = visible();
+    const times = state.barTimes;
+    if (!times.length) { el.innerHTML = '<div class="empty">Keine Daten im Zeitraum.</div>'; return; }
+    const maps = state.trafos.map(t => new Map(t.bars.map(b => [b[0], b[1]])));
+    const totals = times.map(ts => vis.reduce((a, i) => a + Math.max(0, maps[i].get(ts) || 0), 0));
+    const maxV = niceMax(Math.max(1, ...totals) * 1.05);
+    const f = frame(W, H, maxV, axisFmtE(maxV));
+    // feste Anzahl Plätze je Zeitraum, damit die Achse vollständig bleibt
+    const slots = range === 'day' ? 24 : range === 'week' ? 7 : range === 'month' ? new Date(new Date(state.start * 1000).getFullYear(), new Date(state.start * 1000).getMonth() + 1, 0).getDate() : 12;
+    const slotOf = ts => {
+      const d = new Date(ts * 1000), s = new Date(state.start * 1000);
+      if (range === 'day') return d.getHours();
+      if (range === 'year') return d.getMonth();
+      return Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(s.getFullYear(), s.getMonth(), s.getDate())) / 864e5);
+    };
+    const step = (W - f.L - f.R) / slots, bw = Math.max(3, Math.min(40, step * 0.62));
+    const y = v => f.T + (H - f.T - f.B) * (1 - v / maxV);
+    let svg = f.grid;
+    const every = Math.ceil(slots / Math.max(1, Math.floor((W - f.L) / 42)));
+    for (let k = 0; k < slots; k++) {
+      if (k % every) continue;
+      const cx = f.L + step * (k + .5);
+      let lbl;
+      const s = new Date(state.start * 1000);
+      if (range === 'day') lbl = d2(k);
+      else if (range === 'year') lbl = MON[k];
+      else { const t = new Date(s.getFullYear(), s.getMonth(), s.getDate() + k); lbl = range === 'week' ? WD[t.getDay()] + ' ' + t.getDate() + '.' : String(t.getDate()); }
+      svg += `<text x="${cx}" y="${H - 6}" text-anchor="middle">${lbl}</text>`;
+    }
+    times.forEach((ts, n) => {
+      const k = slotOf(ts); if (k < 0 || k >= slots) return;
+      const x0 = f.L + step * (k + .5) - bw / 2;
+      let acc = 0;
+      vis.forEach((i, j) => {
+        const v = Math.max(0, maps[i].get(ts) || 0); if (!v) return;
+        const y1 = y(acc + v), y0 = y(acc);
+        const h = Math.max(0, y0 - y1 - (acc > 0 ? 2 : 0));       // 2 px Abstand zwischen Segmenten
+        const top = j === vis.length - 1 || vis.slice(j + 1).every(q => !(maps[q].get(ts) > 0));
+        const r = top ? Math.min(3, h, bw / 2) : 0;
+        svg += r ? `<path d="M${x0},${y1 + h} V${y1 + r} Q${x0},${y1} ${x0 + r},${y1} H${x0 + bw - r} Q${x0 + bw},${y1} ${x0 + bw},${y1 + r} V${y1 + h} Z" fill="${state.trafos[i].color}"/>`
+                 : `<rect x="${x0}" y="${y1}" width="${bw}" height="${h}" fill="${state.trafos[i].color}"/>`;
+        acc += v;
+      });
+      svg += `<rect class="bh" data-n="${n}" x="${f.L + step * k}" y="0" width="${step}" height="${H}" fill="transparent"/>`;
+    });
+    el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Wirkarbeit">${svg}</svg>`;
+    el.querySelectorAll('.bh').forEach(r => {
+      const ts = times[+r.dataset.n];
+      const show = ev => {
+        let rows = vis.map(i => `<div class="tr"><span><span class="sq" style="background:${state.trafos[i].color}"></span>${esc(state.trafos[i].name)}</span><b>${tx(E(maps[i].get(ts) || 0))}</b></div>`).join('');
+        rows += `<div class="tr" style="border-top:1px solid var(--line);margin-top:.2em;padding-top:.2em"><span>Summe</span><b>${tx(E(totals[+r.dataset.n]))}</b></div>`;
+        const d = new Date(ts * 1000);
+        const head = range === 'day' ? `${d2(d.getHours())}:00–${d2((d.getHours() + 1) % 24)}:00` : range === 'year' ? MON[d.getMonth()] + ' ' + d.getFullYear() : `${WD[d.getDay()]}, ${d.toLocaleDateString('de-DE')}`;
+        showTip(ev, `<div class="th">${head}</div>${rows}`);
+        r.setAttribute('fill', 'rgba(0,117,187,0.06)');
+      };
+      r.addEventListener('mousemove', show); r.addEventListener('touchstart', show, { passive: true });
+      r.addEventListener('mouseleave', () => { hideTip(); r.setAttribute('fill', 'transparent'); });
+    });
+  }
+
+  const tip = document.getElementById('tip');
+  function showTip(ev, html) {
+    tip.innerHTML = html;
+    const cx = ev.touches ? ev.touches[0].clientX : ev.clientX, cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = cx + 14, y = cy - th - 10;
+    if (x + tw > window.innerWidth - 4) x = cx - tw - 14;
+    if (y < 4) y = cy + 16;
+    tip.style.left = x + 'px'; tip.style.top = y + 'px'; tip.style.opacity = 1;
+  }
+  function hideTip() { tip.style.opacity = 0; }
+
+  // ---------------------------------------------------------------- Bedienung
+  document.querySelectorAll('#ranges button').forEach(b => b.onclick = () => { range = b.dataset.r; offset = 0; render(); load(); });
+  document.getElementById('prev').onclick = () => { offset--; load(); };
+  document.getElementById('next').onclick = () => { if (offset < 0) { offset++; load(); } };
+  document.getElementById('refresh').onclick = load;
+  setInterval(() => { if (offset === 0 && state) load(); }, 60000);
+
+  let lastFocus = null;
+  document.getElementById('infoBtn').onclick = () => { lastFocus = document.activeElement; document.getElementById('info').classList.add('open'); document.querySelector('#info .x').focus(); };
+  document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => {
+    if (e.target === m || e.target.closest('[data-close]')) { m.classList.remove('open'); if (lastFocus) lastFocus.focus(); }
+  }));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); });
+
+  let rt;
+  const redraw = () => { clearTimeout(rt); rt = setTimeout(() => state && drawChart(), 120); };
+  window.addEventListener('resize', redraw);
+  if (window.ResizeObserver) new ResizeObserver(redraw).observe(document.documentElement);
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+    "id": "{B84EDFA5-D4E5-40B1-9103-3E686688BC07}",
+    "name": "Trafo-Monitor",
+    "type": 3,
+    "vendor": "",
+    "aliases": [],
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "TRM",
+    "url": ""
+}

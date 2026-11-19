@@ -1,12 +1,12 @@
 {
     "id": "{BC892402-7B50-4E62-BAEA-2839DF615EBF}",
     "author": "Gebäudeenergie",
-    "name": "Benutzungsstunden",
+    "name": "Benutzungsstunden & Trafo-Monitor",
     "url": "",
     "compatibility": {
         "version": "7.0"
     },
-    "version": "2.0",
-    "build": 11,
+    "version": "2.1",
+    "build": 12,
     "date": 1763251200
 }
