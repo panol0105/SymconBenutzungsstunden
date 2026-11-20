@@ -223,6 +223,11 @@
                     "suffix": " Tage",
                     "minimum": 0,
                     "maximum": 180
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "SmoothGaps",
+                    "caption": "Logging-Lücken glätten (Verbrauch nach Ausfall gleichmäßig verteilen)"
                 }
             ]
         },

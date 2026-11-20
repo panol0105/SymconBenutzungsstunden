@@ -41,6 +41,7 @@ class Benutzungsstunden extends IPSModule
         $this->RegisterPropertyBoolean('ShowForecast', true);
         $this->RegisterPropertyBoolean('DetectIncomplete', true);
         $this->RegisterPropertyInteger('IncompleteTolerance', 14);
+        $this->RegisterPropertyBoolean('SmoothGaps', true);
         // Datenlücke zu Jahresbeginn bis zu diesem Tag ignorieren (z. B. Produktionsstart 06.01.2026)
         $this->RegisterPropertyString('IgnoreGapUntil', '{"year":2026,"month":1,"day":6}');
 
@@ -465,6 +466,56 @@ class Benutzungsstunden extends IPSModule
         return mktime(0, 0, 0, (int) $d['month'], (int) $d['day'], (int) $d['year']);
     }
 
+    /**
+     * Logging-Lücken glätten: Fehlen bei einem Zähler Werte (z. B. Verbindungsausfall), stehen in den
+     * Intervallen der Lücke 0 und danach der gesamte aufgelaufene Verbrauch in einem einzigen Intervall.
+     * Das ergibt eine Scheinspitze. Erkannt wird: mind. 10 min (bzw. 1 h) ohne Verbrauch, direkt gefolgt von
+     * einem Intervall mit mehr als dem 2,5-Fachen des üblichen Werts. Dieser Verbrauch wird gleichmäßig auf
+     * die Lücke verteilt. Die Energie bleibt exakt gleich; ein echter Stillstand (0, dann normale Last)
+     * wird nicht verändert. Das Archiv selbst wird nicht geändert.
+     */
+    private function smoothGaps(int $varID, array $values, int $step, float $factor): array
+    {
+        if (count($values) < 10) {
+            return $values;
+        }
+        ksort($values);
+        $pos = array_values(array_filter($values, function ($v) {
+            return $v > 0;
+        }));
+        if (count($pos) < 10) {
+            return $values;
+        }
+        sort($pos);
+        $median = $pos[intdiv(count($pos), 2)];
+        $zero = 0.02 * $median;
+        $minRun = $step >= 3600 ? 1 : 2;
+
+        $keys = array_keys($values);
+        $t0 = $keys[0];
+        $t1 = end($keys);
+        $run = [];                      // Zeitpunkte ohne Verbrauch direkt vor dem aktuellen Intervall
+        for ($t = $t0; $t <= $t1; $t += $step) {
+            $v = $values[$t] ?? 0.0;
+            if ($v <= $zero) {
+                $run[] = $t;
+                continue;
+            }
+            if (count($run) >= $minRun && $v > 2.5 * $median) {
+                $slots = array_merge($run, [$t]);
+                $share = $v / count($slots);
+                foreach ($slots as $s) {
+                    $values[$s] = ($s === $t ? 0.0 : ($values[$s] ?? 0.0)) + $share;
+                }
+                $this->SendDebug('Lücke geglättet', sprintf('#%d %s–%s: %.0f kWh auf %d Intervalle verteilt',
+                    $varID, date('d.m.Y H:i', $run[0]), date('H:i', $t + $step), $v * $factor, count($slots)), 0);
+            }
+            $run = [];
+        }
+        ksort($values);
+        return $values;
+    }
+
     /** Anteile der einzelnen Variablen (kW) im Intervall der Spitze, in Reihenfolge der Konfiguration. */
     private function partsAt(array $per, array $ids, ?int $bucket, float $toKW): array
     {
@@ -526,36 +577,45 @@ class Benutzungsstunden extends IPSModule
         $energy = 0.0;
         $found = false;
         $first = [];
+        $series = [];
 
         foreach ($meters as $varID) {
             foreach ($this->getAggregated($archiveID, $varID, self::AGG_5MIN, $start, $end) as $row) {
                 $found = true;
-                $first[$varID] = min($first[$varID] ?? PHP_INT_MAX, (int) $row['TimeStamp']);
-                $v = (float) $row['Avg'];
-                $energy += $v;
-                $b = intdiv((int) $row['TimeStamp'], 900);
-                $buckets[$b] = ($buckets[$b] ?? 0.0) + $v;
-                $per[$varID][$b] = ($per[$varID][$b] ?? 0.0) + $v;
+                $ts = (int) $row['TimeStamp'];
+                $first[$varID] = min($first[$varID] ?? PHP_INT_MAX, $ts);
+                $series[$varID][$ts] = ($series[$varID][$ts] ?? 0.0) + (float) $row['Avg'];
             }
         }
         $resolution = '15 min';
         $bucketLen = 900;
+        $step = 300;
         $toKW = 4 * $factor;           // kWh je 15 min → kW
 
         if (!$found) {
             // Fallback: Stundenwerte
             $resolution = '60 min';
             $bucketLen = 3600;
+            $step = 3600;
             $toKW = $factor;
             foreach ($meters as $varID) {
                 foreach ($this->getAggregated($archiveID, $varID, self::AGG_HOUR, $start, $end) as $row) {
-                    $first[$varID] = min($first[$varID] ?? PHP_INT_MAX, (int) $row['TimeStamp']);
-                    $v = (float) $row['Avg'];
-                    $energy += $v;
-                    $b = intdiv((int) $row['TimeStamp'], 3600);
-                    $buckets[$b] = ($buckets[$b] ?? 0.0) + $v;
-                    $per[$varID][$b] = ($per[$varID][$b] ?? 0.0) + $v;
+                    $ts = (int) $row['TimeStamp'];
+                    $first[$varID] = min($first[$varID] ?? PHP_INT_MAX, $ts);
+                    $series[$varID][$ts] = ($series[$varID][$ts] ?? 0.0) + (float) $row['Avg'];
                 }
+            }
+        }
+
+        foreach ($series as $varID => $values) {
+            if ($this->ReadPropertyBoolean('SmoothGaps')) {
+                $values = $this->smoothGaps($varID, $values, $step, $factor);
+            }
+            foreach ($values as $ts => $v) {
+                $energy += $v;
+                $b = intdiv($ts, $bucketLen);
+                $buckets[$b] = ($buckets[$b] ?? 0.0) + $v;
+                $per[$varID][$b] = ($per[$varID][$b] ?? 0.0) + $v;
             }
         }
 
@@ -755,7 +815,7 @@ class Benutzungsstunden extends IPSModule
     /** Schlüssel für den Cache – ändert sich die Konfiguration einer Messstelle, wird neu berechnet. */
     private function sourceKey(array $src): string
     {
-        return md5('v5|' . implode('|', [
+        return md5('v6|' . ($this->ReadPropertyBoolean('SmoothGaps') ? 'g|' : '') . implode('|', [
             implode(',', $src['Meters']), $src['EnergyFactor'], $src['PeakMode'],
             implode(',', $src['PowerVars']), $src['PowerFactor'], $src['NominalPower'], $src['PeakLimit']
         ]));
