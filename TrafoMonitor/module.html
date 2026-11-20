@@ -199,7 +199,13 @@
         <h3>Scheinleistung (kVA) und Blindleistung (kvar)</h3>
         <p>Neben der Wirkleistung fließt auch <b>Blindleistung</b> – sie wird z. B. von Motoren zum Aufbau ihrer Magnetfelder benötigt, verrichtet aber keine Arbeit.
           Beides zusammen ergibt die <b>Scheinleistung</b>. Sie ist es, die den Trafo tatsächlich belastet; deshalb sind Trafos in kVA angegeben.</p>
-        <h3>cos φ (Leistungsfaktor)</h3>
+        <h3>cos φ und λ – mit oder ohne Oberschwingungen</h3>
+        <p><b>cos φ</b> (Verschiebungsfaktor) betrachtet nur die Grundschwingung: Wirk ÷ √(Wirk² + Blind²). Er zeigt, wie gut die Kompensation arbeitet,
+          und ist maßgeblich für die Blindarbeit-Abrechnung. <b>λ</b> (Leistungsfaktor) = Wirk ÷ Schein enthält zusätzlich die <b>Oberschwingungen</b>
+          (z. B. von Frequenzumrichtern, Netzteilen, LED). Liegt λ deutlich unter cos φ, belasten Oberschwingungen Trafo und Kabel zusätzlich – im Tooltip
+          steht dann die <b>Verzerrungsleistung</b>; „OS“ markiert einen Anteil ab 10 % der Scheinleistung. Gegen Oberschwingungen hilft keine normale
+          Kompensation, sondern Filter bzw. verdrosselte Anlagen.</p>
+        <h3>cos φ – Einordnung</h3>
         <p>Anteil der Wirkleistung an der Scheinleistung (Wirk ÷ Schein). <b>1,00</b> wäre ideal. Grün ab 0,95, orange ab 0,90, rot darunter –
           unter 0,9 berechnen viele Netzbetreiber zusätzlich Blindarbeit. Ein sinkender Wert kann auf eine gestörte Kompensationsanlage hindeuten.</p>
         <h3>Abrechnungs-cos φ und Blindarbeit</h3>
@@ -342,7 +348,16 @@
   const pNow = i => (state.live || [])[i];
   const sNow = i => (state.liveS || [])[i];
   const loadNow = i => { const t = state.trafos[i], v = sNow(i) != null ? sNow(i) : pNow(i); return t.nominal > 0 && v != null ? v / t.nominal * 100 : null; };
-  const pfNow = i => { const p = pNow(i), sv = sNow(i); return p != null && sv > 0 ? Math.min(1, Math.abs(p) / sv) : null; };
+  // λ = P ÷ S (Leistungsfaktor inkl. Oberschwingungen)
+  const lambdaNow = i => { const p = pNow(i), sv = sNow(i); return p != null && sv > 0 ? Math.min(1, Math.abs(p) / sv) : null; };
+  // cos φ = P ÷ √(P² + Q²) (Verschiebungsfaktor, Grundschwingung) – ohne Blindleistungs-Variable ersatzweise λ
+  const pfNow = i => { const p = pNow(i), q = (state.liveQ || [])[i]; if (p != null && q != null) return (p === 0 && q === 0) ? null : Math.abs(p) / Math.sqrt(p * p + q * q); return lambdaNow(i); };
+  // Verzerrungsleistung D = √(S² − P² − Q²) (Oberschwingungen)
+  const dNow = i => { const p = pNow(i), q = (state.liveQ || [])[i], sv = sNow(i); return p != null && q != null && sv != null && !qSuspicious(i) ? Math.sqrt(Math.max(0, sv * sv - p * p - q * q)) : null; };
+  // Blindleistung unplausibel klein im Verhältnis zu S und P (typisch: Faktor 0,001 bei Variable in kvar)
+  const qSuspicious = i => { const p = pNow(i), q = (state.liveQ || [])[i], sv = sNow(i); if (p == null || q == null || !(sv > 0)) return false;
+    const rest = Math.sqrt(Math.max(0, sv * sv - p * p)); return rest > 0.15 * sv && Math.abs(q) < 0.02 * rest; };
+  function lambdaTotal() { let P = 0, S = 0; state.trafos.forEach((t, i) => { if (!t.error && sNow(i) > 0 && pNow(i) != null) { P += Math.abs(pNow(i)); S += sNow(i); } }); return S > 0 ? Math.min(1, P / S) : null; }
   const qNow = i => { const q = (state.liveQ || [])[i]; if (q != null) return q; const p = pNow(i), sv = sNow(i); return p != null && sv != null ? Math.sqrt(Math.max(0, sv * sv - p * p)) : null; };
   const hasAnyS = () => state.trafos.some(t => t.hasS && !t.error);
   // Gesamt-cos φ: vektoriell ΣP ÷ √(ΣP² + ΣQ²), wenn alle Trafos Blindleistung mit Vorzeichen liefern – sonst Näherung ΣP ÷ ΣS
@@ -404,7 +419,7 @@
         <div class="k-val"><b class="${pf != null ? pfCls(pf) : ''}">${PF(pf)}</b>${q < 0 && allSigned() ? '<span class="u">kap.</span>' : ''}</div>
         <div class="k-sub">${b && b.pf != null
           ? `Abrechnung ${rangeTxt}: <b class="${pfCls(b.pf)}">${PF(b.pf)}</b> · ${tx(KVARH(b.Wn))}${b.excess > 0 ? ` · <span class="lvl-err">${tx(KVARH(b.excess))} über Freigrenze</span>` : ''}`
-          : `Ø ${rangeTxt} ${PF(pa)} · Blind ${tx(KVAR(q))}`}</div></section>`; })()
+          : `Ø ${rangeTxt} ${PF(pa)} · Blind ${tx(KVAR(q))}`} · λ ${PF(lambdaTotal())}</div></section>`; })()
       : `<section class="card kpi"><div class="k-lbl"><span>Ø Leistung</span><span>${rangeTxt}</span></div>
         <div class="k-val">${(p => `<b>${p[0]}</b><span class="u">${p[1]}</span>`)(P(avg))}</div>
         <div class="k-sub">${state.sum.peak && avg ? 'Spitze/Ø ' + nf2.format(state.sum.peak / avg) : '&nbsp;'}</div></section>`}`;
@@ -415,17 +430,20 @@
     const total = state.trafos.reduce((a, t) => a + (t.energy || 0), 0);
     const rows = state.trafos.map((t, i) => {
       const name = `<span class="name-cell"><span class="sq" style="background:${t.color}"></span>${esc(t.name)}</span>`;
-      if (t.error) return `<tr class="off"><td>${name}</td><td colspan="8" class="err-txt" style="text-align:left">⚠ ${esc(t.error)}</td></tr>`;
-      const v = pNow(i), sv = sNow(i), pct = loadNow(i), pf = pfNow(i), q = qNow(i);
-      const tt = [t.meter != null ? 'Zählerstand ' + tx(E(t.meter)) : '', q != null ? 'Blindleistung ' + tx(KVAR(q)) + ((state.liveQ || [])[i] == null ? ' (berechnet)' : '') : '',
-        t.nominal > 0 ? 'Nennleistung ' + tx(KVA(t.nominal)) : '', t.pf != null ? 'Ø cos φ im Zeitraum ' + PF(t.pf) : '',
+      if (t.error) return `<tr class="off"><td>${name}</td><td colspan="9" class="err-txt" style="text-align:left">⚠ ${esc(t.error)}</td></tr>`;
+      const v = pNow(i), sv = sNow(i), pct = loadNow(i), pf = pfNow(i), q = qNow(i), lam = lambdaNow(i), d = dNow(i);
+      const dShare = d != null && sv > 0 ? d / sv : null, susp = qSuspicious(i);
+      const tt = [susp ? '⚠ Blindleistung unplausibel klein – Faktor prüfen (Variable in kvar → Faktor 1)' : '',
+        d != null ? 'Verzerrungsleistung (Oberschwingungen) ' + tx(KVA(d)) + ' = ' + nf0.format(dShare * 100) + ' % von S' : '',t.meter != null ? 'Zählerstand ' + tx(E(t.meter)) : '', q != null ? 'Blindleistung ' + tx(KVAR(q)) + ((state.liveQ || [])[i] == null ? ' (berechnet)' : '') : '',
+        t.nominal > 0 ? 'Nennleistung ' + tx(KVA(t.nominal)) : '', (t.qavg != null && t.avg != null ? 'Ø cos φ im Zeitraum ' + PF(vecPf(t.avg, t.qavg)) : (t.pf != null ? 'Ø λ im Zeitraum ' + PF(t.pf) : '')),
         t.hasQE ? 'Blindarbeit ' + tx(KVARH(t.qenergy)) + (t.qcenergy ? ' ind. / ' + tx(KVARH(t.qcenergy)) + ' kap.' : '') + ' · Abrechnungs-cos φ ' + PF(billing([i]).pf) : ''].filter(Boolean).join(' · ');
       const mx = t.hasS ? KVA(t.smax) : P(t.max), mxT = t.hasS ? t.smaxTime : t.maxTime;
       return `<tr data-i="${i}" class="${hidden.has(i) ? 'off' : ''}" title="${esc(tt)}">
         <td>${name}</td>
         <td>${vu(P(v))}</td>
         <td class="col-opt2">${t.hasS ? vu(KVA(sv)) : '–'}</td>
-        <td class="${pf != null ? pfCls(pf) : ''}">${PF(pf)}${signedQ(i) && (state.liveQ || [])[i] < 0 ? '<span class="u">kap.</span>' : ''}</td>
+        <td class="${susp ? 'lvl-warn' : (pf != null ? pfCls(pf) : '')}">${susp ? '⚠ ' : ''}${PF(pf)}${signedQ(i) && (state.liveQ || [])[i] < 0 ? '<span class="u">kap.</span>' : ''}${!signedQ(i) && pf != null ? '<span class="u" title="ohne Blindleistung: P ÷ S">λ</span>' : ''}</td>
+        <td class="col-opt2 ${dShare != null && dShare >= 0.1 ? 'lvl-warn' : ''}" title="${dShare != null ? 'Oberschwingungsanteil ' + nf0.format(dShare * 100) + ' % von S' : ''}">${PF(lam)}${dShare != null && dShare >= 0.1 ? '<span class="u">OS</span>' : ''}</td>
         <td class="${pct != null ? lvl(pct) : ''}">${pct != null ? nf1.format(pct) + ' %' : '–'}</td>
         <td class="col-opt" title="${mxT ? fmtTime(mxT, true) : ''}">${vu(mx)}</td>
         <td>${vu(E(t.energy))}${t.energyFromPower ? '<span class="u" title="aus Leistung berechnet">*</span>' : ''}</td>
@@ -438,13 +456,16 @@
     const loadTot = state.trafos.reduce((a, t, i) => a + (!t.error ? (sNow(i) != null ? sNow(i) : (pNow(i) || 0)) : 0), 0);
     const fromPower = state.trafos.some(t => t.energyFromPower);
     el.innerHTML = `<table>
-      <thead><tr><th>Trafo</th><th>Wirk</th><th class="col-opt2">Schein</th><th>cos φ</th><th>Auslastung</th><th class="col-opt">Max</th><th>Wirkarbeit</th><th class="col-opt2">Anteil</th><th class="col-opt col-spark">Verlauf</th></tr></thead>
+      <thead><tr><th>Trafo</th><th>Wirk</th><th class="col-opt2">Schein</th><th title="Verschiebungsfaktor (Grundschwingung) – maßgeblich für Kompensation und Blindarbeit">cos φ</th><th class="col-opt2" title="Leistungsfaktor P ÷ S inkl. Oberschwingungen">λ</th><th>Auslastung</th><th class="col-opt">Max</th><th>Wirkarbeit</th><th class="col-opt2">Anteil</th><th class="col-opt col-spark">Verlauf</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><td>Summe</td><td>${vu(P(live))}</td><td class="col-opt2">${hasAnyS() ? vu(KVA(sTot)) : '–'}</td>
         <td class="${pfTotalNow() != null ? pfCls(pfTotalNow()) : ''}">${PF(pfTotalNow())}</td>
+        <td class="col-opt2">${PF(lambdaTotal())}</td>
         <td title="${nom > 0 ? 'von ' + tx(KVA(nom)) : ''}">${nom > 0 ? nf1.format(loadTot / nom * 100) + ' %' : '–'}</td><td class="col-opt">${vu(P(state.sum.peak))}</td>
         <td>${vu(E(total))}</td><td class="col-opt2">100 %</td><td class="col-opt col-spark"></td></tr></tfoot>
-    </table>${fromPower ? '<div class="hint" style="margin-top:.5em">* Wirkarbeit aus der Leistung berechnet (kein Zähler hinterlegt)</div>' : ''}`;
+    </table>${fromPower ? '<div class="hint" style="margin-top:.5em">* Wirkarbeit aus der Leistung berechnet (kein Zähler hinterlegt)</div>' : ''}${
+      state.trafos.some((t, i) => !t.error && qSuspicious(i)) ? '<div class="hint lvl-warn" style="margin-top:.5em">⚠ Blindleistung bei mindestens einem Trafo unplausibel klein – Faktor „Blind → kvar“ prüfen (liefert die Variable bereits kvar: Faktor 1).</div>' : ''}${
+      state.trafos.some((t, i) => { const d = dNow(i), sv = sNow(i); return d != null && sv > 0 && d / sv >= 0.1; }) ? '<div class="hint" style="margin-top:.5em">OS = Oberschwingungsanteil ≥ 10 % der Scheinleistung (λ deutlich kleiner als cos φ).</div>' : ''}`;
     el.querySelectorAll('tbody tr[data-i]').forEach(tr => tr.onclick = () => toggle(+tr.dataset.i));
   }
 

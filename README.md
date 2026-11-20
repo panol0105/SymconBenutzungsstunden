@@ -119,6 +119,9 @@ Instanz „TrafoMonitor“ anlegen, je Trafo eine Zeile:
 - Tooltip mit allen Werten; Info-Button erklärt Wirkleistung/Wirkarbeit für Laien
 - **cos φ**-Ansicht (mit Blindarbeitszählern): Abrechnungs-cos φ = Wirkarbeit ÷ √(Wirkarbeit² + Blindarbeit²) je Intervall, Grenzlinien 0,90/0,95,
   Tooltip mit Blindarbeit und Menge über der üblichen Freigrenze (50 % der Wirkarbeit). Induktive und kapazitive Blindarbeit werden verrechnet.
+- **cos φ** (Verschiebungsfaktor, Grundschwingung: P ÷ √(P² + Q²)) – maßgeblich für Kompensation und Blindarbeit;
+  **λ** (Leistungsfaktor P ÷ S, inkl. Oberschwingungen) – maßgeblich für die Belastung. Tooltip: Verzerrungsleistung D = √(S² − P² − Q²);
+  „OS“ ab 10 % von S. Warnung, wenn die Blindleistung im Verhältnis zu S und P unplausibel klein ist (typisch: Faktor falsch).
 - Kennzahlen: Leistung aktuell (live), Wirkarbeit, Spitze (höchste gleichzeitige Summe), Ø Leistung
 - Live-Werte bei jeder Änderung der Leistungsvariablen (max. 1×/s), Diagramme jede Minute
 
