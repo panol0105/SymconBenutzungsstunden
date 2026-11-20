@@ -31,6 +31,13 @@ brauchen dieselbe Einheit (Faktor gilt für alle) und müssen als „Zähler“ 
 nach einem Zählerausfall). Empfehlung: etwas über der Summe der Trafo-Nennleistungen. 0 = aus. Ignorierte Intervalle
 werden in der Kachel angezeigt und im Debug-Fenster mit Zeitpunkt protokolliert.
 
+## Logging-Lücken
+Fällt das Logging eines Zählers aus (z. B. Gateway/Netzwerk), stehen in der Lücke 0 und danach der gesamte Verbrauch in einem Intervall –
+eine Scheinspitze. Mit „Logging-Lücken glätten“ (Standard: an) erkennt das Modul dieses Muster (≥ 10 min ohne Verbrauch, danach > 2,5-facher
+Normalwert) und verteilt den Verbrauch rechnerisch gleichmäßig über die Lücke. Die Energie bleibt exakt gleich, das Archiv wird nicht verändert.
+Geglättete Lücken stehen im Debug-Fenster („Lücke geglättet: …“).
+Minutenwerte werden tageweise abgefragt, da Symcon je Abfrage höchstens 200.000 Rohwerte verarbeitet.
+
 ## Bezugsleistung
 | Option | Berechnung |
 |---|---|
