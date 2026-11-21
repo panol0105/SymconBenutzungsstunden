@@ -20,6 +20,7 @@ class Benutzungsstunden extends IPSModule
     private const ARCHIVE_GUID = '{43192F0B-135B-4CE7-A0A7-1475603F3060}';
     private const PROFILE = 'BNS.Hours';
     private const MAX_SOURCES = 50;
+    private const PEAK_CANDIDATES = 12;   // Stunden je Monat, in denen die 15-min-Spitze gesucht wird
     private const TIME_BUDGET = 8.0;   // Sekunden Rechenzeit je Durchlauf
 
     // Aggregationsstufen AC_GetAggregatedValues
@@ -474,41 +475,46 @@ class Benutzungsstunden extends IPSModule
      * die Lücke verteilt. Die Energie bleibt exakt gleich; ein echter Stillstand (0, dann normale Last)
      * wird nicht verändert. Das Archiv selbst wird nicht geändert.
      */
-    private function smoothGaps(int $varID, array $values, int $step, float $factor): array
+    private function smoothGaps(int $varID, array $values, int $step, float $factor, float $median = 0.0): array
     {
-        if (count($values) < 10) {
+        if (count($values) < 3) {
             return $values;
         }
         ksort($values);
-        $pos = array_values(array_filter($values, function ($v) {
-            return $v > 0;
-        }));
-        if (count($pos) < 10) {
+        if ($median <= 0) {
+            $median = $this->median($values);
+        }
+        if ($median <= 0) {
             return $values;
         }
-        sort($pos);
-        $median = $pos[intdiv(count($pos), 2)];
-        $zero = 0.02 * $median;
-        $minRun = $step >= 3600 ? 1 : 2;
+        $low = 0.3 * $median;               // deutlich zu wenig Verbrauch (Lücke oder nur einzelne Werte)
+        $maxRun = intdiv(24 * 3600, $step); // höchstens 24 h zurück verteilen
 
         $keys = array_keys($values);
         $t0 = $keys[0];
         $t1 = end($keys);
-        $run = [];                      // Zeitpunkte ohne Verbrauch direkt vor dem aktuellen Intervall
+        $run = [];
         for ($t = $t0; $t <= $t1; $t += $step) {
             $v = $values[$t] ?? 0.0;
-            if ($v <= $zero) {
+            if ($v < $low) {
                 $run[] = $t;
+                if (count($run) > $maxRun) {
+                    array_shift($run);
+                }
                 continue;
             }
-            if (count($run) >= $minRun && $v > 2.5 * $median) {
+            if (count($run) >= 1 && $v > 2.5 * $median) {
                 $slots = array_merge($run, [$t]);
-                $share = $v / count($slots);
-                foreach ($slots as $s) {
-                    $values[$s] = ($s === $t ? 0.0 : ($values[$s] ?? 0.0)) + $share;
+                $total = $v;
+                foreach ($run as $sl) {
+                    $total += $values[$sl] ?? 0.0;
+                }
+                $share = $total / count($slots);
+                foreach ($slots as $sl) {
+                    $values[$sl] = $share;
                 }
                 $this->SendDebug('Lücke geglättet', sprintf('#%d %s–%s: %.0f kWh auf %d Intervalle verteilt',
-                    $varID, date('d.m.Y H:i', $run[0]), date('H:i', $t + $step), $v * $factor, count($slots)), 0);
+                    $varID, date('d.m.Y H:i', $run[0]), date('H:i', $t + $step), $total * $factor, count($slots)), 0);
             }
             $run = [];
         }
@@ -572,72 +578,127 @@ class Benutzungsstunden extends IPSModule
      */
     private function energyAndPeakFromCounters(int $archiveID, array $meters, float $factor, float $limitKW, int $start, int $end): array
     {
-        $buckets = [];
-        $per = [];              // Werte je Zähler und Intervall – für die Aufteilung der Spitze
-        $energy = 0.0;
-        $found = false;
+        // 1. Energie und Kandidaten aus den gespeicherten Stundenwerten (schnell, exakt)
+        $smooth = $this->ReadPropertyBoolean('SmoothGaps');
+        $hourly = [];
         $first = [];
-        $series = [];
-
+        $energy = 0.0;
         foreach ($meters as $varID) {
-            foreach ($this->getAggregated($archiveID, $varID, self::AGG_5MIN, $start, $end) as $row) {
-                $found = true;
+            foreach ($this->getAggregated($archiveID, $varID, self::AGG_HOUR, $start, $end) as $row) {
                 $ts = (int) $row['TimeStamp'];
                 $first[$varID] = min($first[$varID] ?? PHP_INT_MAX, $ts);
-                $series[$varID][$ts] = ($series[$varID][$ts] ?? 0.0) + (float) $row['Avg'];
+                $hourly[$varID][$ts] = ($hourly[$varID][$ts] ?? 0.0) + (float) $row['Avg'];
             }
         }
-        $resolution = '15 min';
-        $bucketLen = 900;
-        $step = 300;
-        $toKW = 4 * $factor;           // kWh je 15 min → kW
+        if (count($hourly) === 0) {
+            return [0.0, 0.0, 0, '', 0, null, []];
+        }
+        $median = [];
+        $hourSum = [];
+        $hourPer = [];
+        foreach ($hourly as $varID => $vals) {
+            $energy += array_sum($vals);
+            $median[$varID] = $this->median($vals);
+            if ($smooth) {
+                $vals = $this->smoothGaps($varID, $vals, 3600, $factor, $median[$varID]);
+            }
+            foreach ($vals as $ts => $v) {
+                $hourSum[$ts] = ($hourSum[$ts] ?? 0.0) + $v;
+                $hourPer[$varID][$ts] = $v;
+            }
+        }
 
-        if (!$found) {
-            // Fallback: Stundenwerte
-            $resolution = '60 min';
-            $bucketLen = 3600;
-            $step = 3600;
-            $toKW = $factor;
+        // 2. 15-min-Spitze: 5-min-Werte nur rund um die 12 verbrauchsstärksten Stunden lesen
+        arsort($hourSum);
+        $candidates = array_slice(array_keys($hourSum), 0, self::PEAK_CANDIDATES);
+        $peak = 0.0;
+        $peakTime = 0;
+        $parts = [];
+        $ignored = 0;
+        $found5 = false;
+        $done = [];
+        foreach ($candidates as $h) {
+            $wStart = max($start, $h - 3 * 3600);      // Vorlauf, damit Lücken vor der Stunde erkannt werden
+            $wEnd = min($end, $h + 3600);
+            $buckets = [];
+            $per = [];
             foreach ($meters as $varID) {
-                foreach ($this->getAggregated($archiveID, $varID, self::AGG_HOUR, $start, $end) as $row) {
+                $vals = [];
+                foreach ($this->getAggregated($archiveID, $varID, self::AGG_5MIN, $wStart, $wEnd) as $row) {
                     $ts = (int) $row['TimeStamp'];
-                    $first[$varID] = min($first[$varID] ?? PHP_INT_MAX, $ts);
-                    $series[$varID][$ts] = ($series[$varID][$ts] ?? 0.0) + (float) $row['Avg'];
+                    $vals[$ts] = ($vals[$ts] ?? 0.0) + (float) $row['Avg'];
+                }
+                if (count($vals) === 0) {
+                    continue;
+                }
+                $found5 = true;
+                if ($smooth && ($median[$varID] ?? 0) > 0) {
+                    $vals = $this->smoothGaps($varID, $vals, 300, $factor, $median[$varID] / 12);
+                }
+                foreach ($vals as $ts => $v) {
+                    if ($ts < $h || $ts >= $h + 3600) {
+                        continue;
+                    }
+                    $bk = intdiv($ts, 900);
+                    $buckets[$bk] = ($buckets[$bk] ?? 0.0) + $v;
+                    $per[$varID][$bk] = ($per[$varID][$bk] ?? 0.0) + $v;
+                }
+            }
+            foreach ($buckets as $bk => $raw) {
+                if (isset($done[$bk])) {
+                    continue;
+                }
+                $done[$bk] = true;
+                $kw = $raw * 4 * $factor;              // kWh je 15 min → kW
+                if ($limitKW > 0 && $kw > $limitKW) {
+                    $ignored++;
+                    $this->SendDebug('Plausibilität', sprintf('%s: %.1f kW > %.1f kW ignoriert', date('d.m.Y H:i', $bk * 900), $kw, $limitKW), 0);
+                    continue;
+                }
+                if ($kw > $peak) {
+                    $peak = $kw;
+                    $peakTime = $bk * 900;
+                    $parts = $this->partsAt($per, $meters, $bk, 4 * $factor);
                 }
             }
         }
-
-        foreach ($series as $varID => $values) {
-            if ($this->ReadPropertyBoolean('SmoothGaps')) {
-                $values = $this->smoothGaps($varID, $values, $step, $factor);
-            }
-            foreach ($values as $ts => $v) {
-                $energy += $v;
-                $b = intdiv($ts, $bucketLen);
-                $buckets[$b] = ($buckets[$b] ?? 0.0) + $v;
-                $per[$varID][$b] = ($per[$varID][$b] ?? 0.0) + $v;
-            }
+        if ($found5) {
+            return [$energy * $factor, $peak, $peakTime, '15 min', $ignored, $this->coverageStart($first, $meters), $parts];
         }
 
+        // 3. Fallback: keine 5-min-Werte → Stundenmittel
         $peak = 0.0;
         $peakTime = 0;
-        $peakB = null;
+        $parts = [];
         $ignored = 0;
-        foreach ($buckets as $b => $raw) {
-            $kw = $raw * $toKW;
+        foreach ($hourSum as $ts => $raw) {
+            $kw = $raw * $factor;
             if ($limitKW > 0 && $kw > $limitKW) {
                 $ignored++;
-                $this->SendDebug('Plausibilität', sprintf('%s: %.1f kW > %.1f kW ignoriert', date('d.m.Y H:i', $b * $bucketLen), $kw, $limitKW), 0);
                 continue;
             }
             if ($kw > $peak) {
                 $peak = $kw;
-                $peakTime = $b * $bucketLen;
-                $peakB = $b;
+                $peakTime = $ts;
+                $parts = [];
+                foreach ($meters as $varID) {
+                    $parts[] = round(($hourPer[$varID][$ts] ?? 0.0) * $factor, 1);
+                }
             }
         }
-        $parts = $this->partsAt($per, $meters, $peakB, $toKW);
-        return [$energy * $factor, $peak, $peakTime, $resolution, $ignored, $this->coverageStart($first, $meters), $parts];
+        return [$energy * $factor, $peak, $peakTime, '60 min', $ignored, $this->coverageStart($first, $meters), $parts];
+    }
+
+    private function median(array $values): float
+    {
+        $pos = array_values(array_filter($values, function ($v) {
+            return $v > 0;
+        }));
+        if (count($pos) === 0) {
+            return 0.0;
+        }
+        sort($pos);
+        return (float) $pos[intdiv(count($pos), 2)];
     }
 
     /**
@@ -650,45 +711,58 @@ class Benutzungsstunden extends IPSModule
      */
     private function peakFromPowerVariables(int $archiveID, array $vars, float $factor, float $limitKW, int $start, int $end): array
     {
-        foreach ([self::AGG_1MIN => [60, '1 min'], self::AGG_5MIN => [300, '5 min'], self::AGG_HOUR => [3600, '60 min']] as $level => [$len, $label]) {
-            $sum = [];
-            $per = [];
+        // Kandidaten: verbrauchsstärkste Stunden der Summe (gespeicherte Stundenmittel, schnell)
+        $hourSum = [];
+        foreach ($vars as $varID) {
+            foreach ($this->getAggregated($archiveID, $varID, self::AGG_HOUR, $start, $end) as $row) {
+                $ts = (int) $row['TimeStamp'];
+                $hourSum[$ts] = ($hourSum[$ts] ?? 0.0) + (float) $row['Avg'];
+            }
+        }
+        if (count($hourSum) === 0) {
+            return [0.0, 0, '', 0, []];
+        }
+        arsort($hourSum);
+        $candidates = array_slice(array_keys($hourSum), 0, self::PEAK_CANDIDATES);
+
+        foreach ([self::AGG_1MIN => [60, '1 min'], self::AGG_5MIN => [300, '5 min']] as $level => [$len, $label]) {
+            $peak = 0.0;
+            $peakTime = 0;
+            $parts = [];
+            $ignored = 0;
             $found = false;
-            // 1-min-Werte in 6-Tage-Blöcken abfragen (Abfragelimit)
-            $chunk = 31 * 86400;   // Aufteilung für Minutenwerte übernimmt getAggregated()
-            foreach ($vars as $varID) {
-                for ($from = $start; $from < $end; $from += $chunk) {
-                    foreach ($this->getAggregated($archiveID, $varID, $level, $from, min($from + $chunk, $end)) as $row) {
+            foreach ($candidates as $h) {
+                $sum = [];
+                $per = [];
+                foreach ($vars as $varID) {
+                    foreach ($this->getAggregated($archiveID, $varID, $level, $h, min($end, $h + 3600)) as $row) {
                         $found = true;
                         $b = intdiv((int) $row['TimeStamp'], $len);
                         $sum[$b] = ($sum[$b] ?? 0.0) + (float) $row['Avg'];
                         $per[$varID][$b] = ($per[$varID][$b] ?? 0.0) + (float) $row['Avg'];
                     }
                 }
-            }
-            if (!$found) {
-                continue;
-            }
-            $peak = 0.0;
-            $peakTime = 0;
-            $peakB = null;
-            $ignored = 0;
-            foreach ($sum as $b => $v) {
-                $kw = $v * $factor;
-                if ($limitKW > 0 && $kw > $limitKW) {
-                    $ignored++;
-                    $this->SendDebug('Plausibilität', sprintf('%s: %.1f kW > %.1f kW ignoriert', date('d.m.Y H:i', $b * $len), $kw, $limitKW), 0);
-                    continue;
-                }
-                if ($kw > $peak) {
-                    $peak = $kw;
-                    $peakTime = $b * $len;
-                    $peakB = $b;
+                foreach ($sum as $b => $v) {
+                    $kw = $v * $factor;
+                    if ($limitKW > 0 && $kw > $limitKW) {
+                        $ignored++;
+                        continue;
+                    }
+                    if ($kw > $peak) {
+                        $peak = $kw;
+                        $peakTime = $b * $len;
+                        $parts = $this->partsAt($per, $vars, $b, $factor);
+                    }
                 }
             }
-            return [$peak, $peakTime, $label, $ignored, $this->partsAt($per, $vars, $peakB, $factor)];
+            if ($found) {
+                return [$peak, $peakTime, $label, $ignored, $parts];
+            }
         }
-        return [0.0, 0, '', 0, []];
+        // Fallback: Stundenmittel
+        arsort($hourSum);
+        $ts = array_key_first($hourSum);
+        return [$hourSum[$ts] * $factor, $ts, '60 min', 0, []];
     }
 
     /**
@@ -815,7 +889,7 @@ class Benutzungsstunden extends IPSModule
     /** Schlüssel für den Cache – ändert sich die Konfiguration einer Messstelle, wird neu berechnet. */
     private function sourceKey(array $src): string
     {
-        return md5('v6|' . ($this->ReadPropertyBoolean('SmoothGaps') ? 'g|' : '') . implode('|', [
+        return md5('v7|' . ($this->ReadPropertyBoolean('SmoothGaps') ? 'g|' : '') . implode('|', [
             implode(',', $src['Meters']), $src['EnergyFactor'], $src['PeakMode'],
             implode(',', $src['PowerVars']), $src['PowerFactor'], $src['NominalPower'], $src['PeakLimit']
         ]));

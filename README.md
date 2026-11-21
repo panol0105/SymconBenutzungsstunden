@@ -32,11 +32,13 @@ nach einem Zählerausfall). Empfehlung: etwas über der Summe der Trafo-Nennleis
 werden in der Kachel angezeigt und im Debug-Fenster mit Zeitpunkt protokolliert.
 
 ## Logging-Lücken
-Fällt das Logging eines Zählers aus (z. B. Gateway/Netzwerk), stehen in der Lücke 0 und danach der gesamte Verbrauch in einem Intervall –
-eine Scheinspitze. Mit „Logging-Lücken glätten“ (Standard: an) erkennt das Modul dieses Muster (≥ 10 min ohne Verbrauch, danach > 2,5-facher
+Fällt das Logging eines Zählers aus oder liefert die Verbindung nur noch vereinzelt Werte, steht in der Lücke kaum Verbrauch und danach der Rest in einem Intervall –
+eine Scheinspitze. Mit „Logging-Lücken glätten“ (Standard: an) erkennt das Modul dieses Muster (Intervalle mit < 30 % des üblichen Verbrauchs, danach > 2,5-facher
 Normalwert) und verteilt den Verbrauch rechnerisch gleichmäßig über die Lücke. Die Energie bleibt exakt gleich, das Archiv wird nicht verändert.
 Geglättete Lücken stehen im Debug-Fenster („Lücke geglättet: …“).
-Minutenwerte werden tageweise abgefragt, da Symcon je Abfrage höchstens 200.000 Rohwerte verarbeitet.
+**Rechenweg der 15-min-Spitze:** Die Energie stammt aus den gespeicherten Stundenwerten (exakt und schnell). Die 15-min-Spitze wird in den
+12 verbrauchsstärksten Stunden je Monat aus 5-min-Werten gebildet (je Stunde mit 3 h Vorlauf für die Lückenerkennung). Das vermeidet sehr viele
+Rohdatenabfragen – Symcon berechnet Minutenwerte aus den Rohdaten und verarbeitet je Abfrage höchstens 200.000 Werte.
 
 ## Bezugsleistung
 | Option | Berechnung |
