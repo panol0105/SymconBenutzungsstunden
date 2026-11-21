@@ -263,6 +263,27 @@
     return withDate ? `${d2(d.getDate())}.${d2(d.getMonth() + 1)}. ${t}` : t;
   }
 
+  // ---------------------------------------------------------------- Flackerfreies Aktualisieren
+  // Nur geänderte Texte/Attribute/Elemente werden ausgetauscht; data-keep schützt separat gezeichnete Bereiche.
+  function morph(el, html) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html;
+    patchChildren(el, tpl.content);
+  }
+  function patchChildren(a, b) {
+    const an = Array.from(a.childNodes), bn = Array.from(b.childNodes);
+    bn.forEach((y, i) => {
+      const x = an[i];
+      if (!x) { a.appendChild(y.cloneNode(true)); return; }
+      if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName) { a.replaceChild(y.cloneNode(true), x); return; }
+      if (x.nodeType !== 1) { if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue; return; }
+      Array.from(x.attributes).forEach(at => { if (!y.hasAttribute(at.name)) x.removeAttribute(at.name); });
+      Array.from(y.attributes).forEach(at => { if (x.getAttribute(at.name) !== at.value) x.setAttribute(at.name, at.value); });
+      if (!x.hasAttribute('data-keep')) patchChildren(x, y);
+    });
+    for (let i = an.length - 1; i >= bn.length; i--) a.removeChild(an[i]);
+  }
+
   // ---------------------------------------------------------------- Kommunikation
   function load(force) {
     lastReq = clientId + '-' + (++reqNo);
@@ -273,8 +294,8 @@
   function showError(msg) {
     loading = false; renderStatus();
     const box = `<div class="empty" style="color:var(--err)">⚠ ${esc(msg)}</div>`;
-    if (!state) document.getElementById('main').innerHTML = box;
-    else { const c = document.getElementById('chart'); if (c) c.innerHTML = box; }
+    if (!state) morph(document.getElementById('main'), box);
+    else { const c = document.getElementById('chart'); if (c) { c._hover = null; morph(c, box); } }
   }
 
   // Wird von Symcon bei UpdateVisualizationValue() und beim Laden aufgerufen
@@ -305,35 +326,35 @@
     renderStatus();
 
     const main = document.getElementById('main');
-    if (!state.trafos.length) { main.innerHTML = '<div class="empty">Keine Trafos konfiguriert.</div>'; return; }
-    main.innerHTML = `
-      <div class="kpis" id="kpis"></div>
+    if (!state.trafos.length) { morph(main, '<div class="empty">Keine Trafos konfiguriert.</div>'); return; }
+    morph(main, `
+      <div class="kpis" id="kpis" data-keep></div>
       <div class="row2">
         <section class="card">
           <div class="card-head"><h2>Energieverteilung · Trafos</h2><span class="right hint">Klick blendet im Diagramm aus</span></div>
-          <div class="tbl-wrap" id="tbl"></div>
+          <div class="tbl-wrap" id="tbl" data-keep></div>
         </section>
         <section class="card chart-card">
           <div class="card-head">
             <span class="seg small" id="modes"><button data-m="power">Leistung</button>${state.trafos.some(t => t.nominal > 0) ? '<button data-m="load">Auslastung</button>' : ''}<button data-m="energy">Wirkarbeit</button>${hasQE() ? '<button data-m="pf">cos φ</button>' : ''}</span>
             <span class="right" id="chartInfo"></span>
           </div>
-          <div class="legend" id="legend"></div>
-          <div class="chart" id="chart"></div>
+          <div class="legend" id="legend" data-keep></div>
+          <div class="chart" id="chart" data-keep></div>
         </section>
-      </div>`;
+      </div>`);
     document.querySelectorAll('#modes button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.m === mode); b.onclick = () => { mode = b.dataset.m; render(); }; });
     renderKpis(); renderTable(); renderLegend(); drawChart();
   }
 
   function renderStatus() {
-    if (!state) { document.getElementById('status').innerHTML = loading ? '<span class="pill busy">lädt …</span>' : ''; return; }
+    if (!state) { morph(document.getElementById('status'), loading ? '<span class="pill busy">lädt …</span>' : ''); return; }
     const errs = state ? state.trafos.filter(t => t.error).length : 0;
     let h = '';
     if (loading) h += '<span class="pill busy">lädt …</span> ';
     if (errs) h += `<span class="pill err">${errs} Trafo${errs > 1 ? 's' : ''} prüfen</span>`;
     else if (state && offset === 0) h += '<span class="pill live">Live</span>';
-    document.getElementById('status').innerHTML = h;
+    morph(document.getElementById('status'), h);
   }
 
   const visible = () => state.trafos.map((t, i) => i).filter(i => !hidden.has(i) && !state.trafos[i].error);
@@ -403,7 +424,7 @@
       meter = `<div class="meter"><div class="bar">${state.trafos.map((t, i) => {
         const v = sNow(i) != null ? sNow(i) : pNow(i); return v > 0 && !t.error ? `<i style="width:${Math.min(100, v / nom * 100)}%;background:${t.color}"></i>` : ''; }).join('')}</div></div>`;
     }
-    el.innerHTML = `
+    morph(el, `
       <section class="card kpi hero"><div class="k-lbl"><span>Wirkleistung aktuell</span><span>${nom > 0 ? nf1.format(loadTot / nom * 100) + ' % von ' + tx(KVA(nom)) : ''}</span></div>
         <div class="k-val">${(p => `<b>${p[0]}</b><span class="u">${p[1]}</span>`)(P(live))}</div>${meter}
         <div class="k-sub">${hasAnyS() ? 'Schein ' + tx(KVA(sTot)) + ' · ' : ''}Summe ${state.trafos.length} Trafos · live</div></section>
@@ -422,7 +443,7 @@
           : `Ø ${rangeTxt} ${PF(pa)} · Blind ${tx(KVAR(q))}`} · λ ${PF(lambdaTotal())}</div></section>`; })()
       : `<section class="card kpi"><div class="k-lbl"><span>Ø Leistung</span><span>${rangeTxt}</span></div>
         <div class="k-val">${(p => `<b>${p[0]}</b><span class="u">${p[1]}</span>`)(P(avg))}</div>
-        <div class="k-sub">${state.sum.peak && avg ? 'Spitze/Ø ' + nf2.format(state.sum.peak / avg) : '&nbsp;'}</div></section>`}`;
+        <div class="k-sub">${state.sum.peak && avg ? 'Spitze/Ø ' + nf2.format(state.sum.peak / avg) : '&nbsp;'}</div></section>`}`);
   }
 
   function renderTable() {
@@ -455,7 +476,7 @@
     const sTot = state.trafos.reduce((a, t, i) => a + (!t.error && sNow(i) != null ? sNow(i) : 0), 0);
     const loadTot = state.trafos.reduce((a, t, i) => a + (!t.error ? (sNow(i) != null ? sNow(i) : (pNow(i) || 0)) : 0), 0);
     const fromPower = state.trafos.some(t => t.energyFromPower);
-    el.innerHTML = `<table>
+    morph(el, `<table>
       <thead><tr><th>Trafo</th><th>Wirk</th><th class="col-opt2">Schein</th><th title="Verschiebungsfaktor (Grundschwingung) – maßgeblich für Kompensation und Blindarbeit">cos φ</th><th class="col-opt2" title="Leistungsfaktor P ÷ S inkl. Oberschwingungen">λ</th><th>Auslastung</th><th class="col-opt">Max</th><th>Wirkarbeit</th><th class="col-opt2">Anteil</th><th class="col-opt col-spark">Verlauf</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><td>Summe</td><td>${vu(P(live))}</td><td class="col-opt2">${hasAnyS() ? vu(KVA(sTot)) : '–'}</td>
@@ -465,7 +486,7 @@
         <td>${vu(E(total))}</td><td class="col-opt2">100 %</td><td class="col-opt col-spark"></td></tr></tfoot>
     </table>${fromPower ? '<div class="hint" style="margin-top:.5em">* Wirkarbeit aus der Leistung berechnet (kein Zähler hinterlegt)</div>' : ''}${
       state.trafos.some((t, i) => !t.error && qSuspicious(i)) ? '<div class="hint lvl-warn" style="margin-top:.5em">⚠ Blindleistung bei mindestens einem Trafo unplausibel klein – Faktor „Blind → kvar“ prüfen (liefert die Variable bereits kvar: Faktor 1).</div>' : ''}${
-      state.trafos.some((t, i) => { const d = dNow(i), sv = sNow(i); return d != null && sv > 0 && d / sv >= 0.1; }) ? '<div class="hint" style="margin-top:.5em">OS = Oberschwingungsanteil ≥ 10 % der Scheinleistung (λ deutlich kleiner als cos φ).</div>' : ''}`;
+      state.trafos.some((t, i) => { const d = dNow(i), sv = sNow(i); return d != null && sv > 0 && d / sv >= 0.1; }) ? '<div class="hint" style="margin-top:.5em">OS = Oberschwingungsanteil ≥ 10 % der Scheinleistung (λ deutlich kleiner als cos φ).</div>' : ''}`);
     el.querySelectorAll('tbody tr[data-i]').forEach(tr => tr.onclick = () => toggle(+tr.dataset.i));
   }
 
@@ -481,11 +502,11 @@
     const el = document.getElementById('legend'); if (!el) return;
     let h = state.trafos.map((t, i) => t.error ? '' :
       `<button class="chip ${hidden.has(i) ? 'off' : ''}" data-i="${i}"><span class="ln" style="background:${t.color}"></span>${esc(t.name)}</button>`).join('');
-    if (mode === 'pf') { el.innerHTML = state.trafos.map((t, i) => t.error || !t.hasQE ? '' :
-      `<button class="chip ${hidden.has(i) ? 'off' : ''}" data-i="${i}"><span class="ln" style="background:${t.color}"></span>${esc(t.name)}</button>`).join('');
+    if (mode === 'pf') { morph(el, state.trafos.map((t, i) => t.error || !t.hasQE ? '' :
+      `<button class="chip ${hidden.has(i) ? 'off' : ''}" data-i="${i}"><span class="ln" style="background:${t.color}"></span>${esc(t.name)}</button>`).join(''));
       el.querySelectorAll('.chip').forEach(c => c.onclick = () => toggle(+c.dataset.i)); }
     else if (mode === 'power' && state.showSum) h += `<button class="chip ${sumOn ? '' : 'off'}" data-sum="1"><span class="ln" style="background:${SUM_COLOR};height:2px;border-top:1px dashed ${SUM_COLOR}"></span>Summe</button>`;
-    if (mode !== 'pf') el.innerHTML = h;
+    if (mode !== 'pf') morph(el, h);
     if (mode !== 'pf') el.querySelectorAll('.chip').forEach(c => c.onclick = () => { if (c.dataset.sum) { sumOn = !sumOn; renderLegend(); drawChart(); } else toggle(+c.dataset.i); });
     const info = document.getElementById('chartInfo');
     const avgTxt = { day: 'Ø 5 min', week: 'Ø 1 h', month: 'Ø 1 h', year: 'Ø 1 Tag' }[range];
@@ -520,8 +541,7 @@
 
   function drawChart() {
     const el = document.getElementById('chart'); if (!el) return;
-    el.innerHTML = '';
-    const W = el.clientWidth, H = el.clientHeight;
+    const W = el.clientWidth, H = el.clientHeight;   // SVG ist absolut positioniert -> Größe unabhängig vom Inhalt
     if (W < 50 || H < 50) return;
     if (mode === 'energy') drawBars(el, W, H); else if (mode === 'pf') drawPf(el, W, H); else drawLines(el, W, H);
   }
@@ -555,7 +575,7 @@
       series.push({ i: -1, t: { name: 'Summe', color: SUM_COLOR }, pts: [...m.entries()].sort((a, b) => a[0] - b[0]), sum: true });
     }
     const all = series.flatMap(s => s.pts.map(p => p[1]));
-    if (!all.length) { el.innerHTML = '<div class="empty">Keine Daten im Zeitraum.</div>'; return; }
+    if (!all.length) { el._hover = null; morph(el, '<div class="empty">Keine Daten im Zeitraum.</div>'); return; }
     const maxV = isLoad ? Math.max(100, niceMax(Math.max(...all) * 1.05)) : niceMax(Math.max(...all) * 1.05);
     const fmtV = isLoad ? (v => nf1.format(v) + ' %') : (v => tx(P(v)));
     const f = frame(W, H, maxV, isLoad ? (v => nf0.format(v) + ' %') : axisFmtP(maxV));
@@ -578,13 +598,14 @@
     if (state.now < state.end) svg += `<line x1="${x(state.now)}" x2="${x(state.now)}" y1="${f.T}" y2="${H - f.B}" stroke="var(--accent)" stroke-opacity=".35" stroke-dasharray="2 3"/>`;
     svg += `<line id="xh" x1="0" x2="0" y1="${f.T}" y2="${H - f.B}" stroke="var(--ink)" stroke-opacity=".35" visibility="hidden"/><g id="dots"></g>`;
     svg += `<rect id="hit" x="${f.L}" y="0" width="${W - f.L - f.R}" height="${H}" fill="transparent"/>`;
-    el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${isLoad ? 'Auslastung' : 'Leistungsverlauf'}">${svg}</svg>`;
+    morph(el, `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${isLoad ? 'Auslastung' : 'Leistungsverlauf'}">${svg}</svg>`);
 
     // Fadenkreuz + Tooltip
     const times = [...new Set(series.flatMap(s => s.pts.map(p => p[0])))].sort((a, b) => a - b);
     const idx = series.map(s => new Map(s.pts.map(p => [p[0], p[1]])));
-    const hit = el.querySelector('#hit'), xh = el.querySelector('#xh'), dots = el.querySelector('#dots');
     const move = ev => {
+      const xh = el.querySelector('#xh'), dots = el.querySelector('#dots');
+      if (!xh || !dots) return;
       const r = el.getBoundingClientRect();
       const cx = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
       const ts = state.start + (cx - f.L) / (W - f.L - f.R) * (state.end - state.start);
@@ -602,14 +623,15 @@
       const head = range === 'year' ? new Date(best * 1000).toLocaleDateString('de-DE') : fmtTime(best, range !== 'day');
       showTip(ev, `<div class="th">${head}</div>${rows}`);
     };
-    hit.addEventListener('mousemove', move); hit.addEventListener('touchstart', move, { passive: true }); hit.addEventListener('touchmove', move, { passive: true });
-    hit.addEventListener('mouseleave', () => { hideTip(); xh.setAttribute('visibility', 'hidden'); dots.innerHTML = ''; });
+    el._hover = (ev, target) => { if (target.closest('#hit')) move(ev); else el._leave(); };
+    el._leave = () => { hideTip(); const xh = el.querySelector('#xh'), dots = el.querySelector('#dots');
+      if (xh) xh.setAttribute('visibility', 'hidden'); if (dots && dots.firstChild) dots.innerHTML = ''; };
   }
 
   function drawBars(el, W, H) {
     const vis = visible();
     const times = state.barTimes;
-    if (!times.length) { el.innerHTML = '<div class="empty">Keine Daten im Zeitraum.</div>'; return; }
+    if (!times.length) { el._hover = null; morph(el, '<div class="empty">Keine Daten im Zeitraum.</div>'); return; }
     const maps = state.trafos.map(t => new Map(t.bars.map(b => [b[0], b[1]])));
     const totals = times.map(ts => vis.reduce((a, i) => a + Math.max(0, maps[i].get(ts) || 0), 0));
     const maxV = niceMax(Math.max(1, ...totals) * 1.05);
@@ -652,19 +674,16 @@
       });
       svg += `<rect class="bh" data-n="${n}" x="${f.L + step * k}" y="0" width="${step}" height="${H}" fill="transparent"/>`;
     });
-    el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Wirkarbeit">${svg}</svg>`;
-    el.querySelectorAll('.bh').forEach(r => {
+    morph(el, `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Wirkarbeit">${svg}</svg>`);
+    barHover(el, (ev, r) => {
       const ts = times[+r.dataset.n];
-      const show = ev => {
+      {
         let rows = vis.map(i => `<div class="tr"><span><span class="sq" style="background:${state.trafos[i].color}"></span>${esc(state.trafos[i].name)}</span><b>${tx(E(maps[i].get(ts) || 0))}</b></div>`).join('');
         rows += `<div class="tr" style="border-top:1px solid var(--line);margin-top:.2em;padding-top:.2em"><span>Summe</span><b>${tx(E(totals[+r.dataset.n]))}</b></div>`;
         const d = new Date(ts * 1000);
         const head = range === 'day' ? `${d2(d.getHours())}:00–${d2((d.getHours() + 1) % 24)}:00` : range === 'year' ? MON[d.getMonth()] + ' ' + d.getFullYear() : `${WD[d.getDay()]}, ${d.toLocaleDateString('de-DE')}`;
         showTip(ev, `<div class="th">${head}</div>${rows}`);
-        r.setAttribute('fill', 'rgba(0,117,187,0.06)');
-      };
-      r.addEventListener('mousemove', show); r.addEventListener('touchstart', show, { passive: true });
-      r.addEventListener('mouseleave', () => { hideTip(); r.setAttribute('fill', 'transparent'); });
+      }
     });
   }
 
@@ -672,7 +691,7 @@
   function drawPf(el, W, H) {
     const vis = visible().filter(i => state.trafos[i].hasQE);
     const times = [...new Set(vis.flatMap(i => state.trafos[i].qbars.map(b => b[0])))].sort((a, b) => a - b);
-    if (!times.length) { el.innerHTML = '<div class="empty">Keine Blindarbeit im Zeitraum.</div>'; return; }
+    if (!times.length) { el._hover = null; morph(el, '<div class="empty">Keine Blindarbeit im Zeitraum.</div>'); return; }
     const vals = times.map(ts => billing(vis, ts));
     const lo = Math.min(0.8, Math.floor(Math.min(...vals.filter(v => v.pf != null).map(v => v.pf), 1) * 20) / 20);
     const f = frame(W, H, 1 - lo, v => nf2.format(lo + v));
@@ -703,10 +722,10 @@
       svg += `<path d="M${x0},${base} V${top + rr} Q${x0},${top} ${x0 + rr},${top} H${x0 + bw - rr} Q${x0 + bw},${top} ${x0 + bw},${top + rr} V${base} Z" fill="${col}" opacity="${v.pf < 0.9 ? 1 : .85}"/>`;
       svg += `<rect class="bh" data-n="${n}" x="${f.L + step * k}" y="0" width="${step}" height="${H}" fill="transparent"/>`;
     });
-    el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Abrechnungs-cos φ">${svg}</svg>`;
-    el.querySelectorAll('.bh').forEach(rc => {
+    morph(el, `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Abrechnungs-cos φ">${svg}</svg>`);
+    barHover(el, (ev, rc) => {
       const n = +rc.dataset.n, ts = times[n], v = vals[n];
-      const show = ev => {
+      {
         const d = new Date(ts * 1000);
         const head = range === 'day' ? `${d2(d.getHours())}:00–${d2((d.getHours() + 1) % 24)}:00` : range === 'year' ? MON[d.getMonth()] + ' ' + d.getFullYear() : `${WD[d.getDay()]}, ${d.toLocaleDateString('de-DE')}`;
         let rows = vis.map(i => { const b = billing([i], ts); return `<div class="tr"><span><span class="sq" style="background:${state.trafos[i].color}"></span>${esc(state.trafos[i].name)}</span><b class="${b.pf != null ? pfCls(b.pf) : ''}">${PF(b.pf)}</b></div>`; }).join('');
@@ -715,11 +734,20 @@
         if (v.Wc) rows += `<div class="tr"><span>Blindarbeit kap.</span><b>${tx(KVARH(v.Wc))}</b></div>`;
         if (v.excess > 0) rows += `<div class="tr lvl-err"><span>über Freigrenze (50 %)</span><b>${tx(KVARH(v.excess))}</b></div>`;
         showTip(ev, `<div class="th">${head}</div>${rows}`);
-        rc.setAttribute('fill', 'rgba(0,117,187,0.06)');
-      };
-      rc.addEventListener('mousemove', show); rc.addEventListener('touchstart', show, { passive: true });
-      rc.addEventListener('mouseleave', () => { hideTip(); rc.setAttribute('fill', 'transparent'); });
+      }
     });
+  }
+
+  // Hover für Balkendiagramme: markiert das Intervall und zeigt den Tooltip
+  function barHover(el, show) {
+    let cur = null;
+    el._leave = () => { hideTip(); if (cur) { cur.setAttribute('fill', 'transparent'); cur = null; } };
+    el._hover = (ev, target) => {
+      const r = target.closest('.bh');
+      if (!r) { el._leave(); return; }
+      if (cur !== r) { if (cur) cur.setAttribute('fill', 'transparent'); r.setAttribute('fill', 'rgba(0,117,187,0.06)'); cur = r; }
+      show(ev, r);
+    };
   }
 
   const tip = document.getElementById('tip');
@@ -753,6 +781,19 @@
     if (e.target === m || e.target.closest('[data-close]')) { m.classList.remove('open'); if (lastFocus) lastFocus.focus(); }
   }));
   document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); });
+
+  // Ein Handler für alle Diagramm-Interaktionen (keine doppelten Listener beim Aktualisieren)
+  let chartActive = false;
+  const chartEvt = ev => {
+    const t = ev.target;
+    const el = t && t.closest ? t.closest('#chart') : null;
+    if (el && el._hover) { el._hover(ev, t); chartActive = true; return; }
+    if (chartActive) { const c = document.getElementById('chart'); if (c && c._leave) c._leave(); chartActive = false; }
+  };
+  document.addEventListener('mousemove', chartEvt);
+  document.addEventListener('touchstart', chartEvt, { passive: true });
+  document.addEventListener('touchmove', chartEvt, { passive: true });
+  document.documentElement.addEventListener('mouseleave', () => { const c = document.getElementById('chart'); if (c && c._leave) c._leave(); chartActive = false; });
 
   let rt;
   const redraw = () => { clearTimeout(rt); rt = setTimeout(() => state && drawChart(), 120); };

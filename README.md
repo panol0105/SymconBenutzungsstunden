@@ -79,6 +79,10 @@ Optionales Datum (z. B. Produktionsstart). Fehlen Archivdaten nur bis zu diesem 
 ## Info-Button
 Das „i“ in der Kachel öffnet ein Popup, das Benutzungsstunden, typische Werte, die Bedeutung für Netzentgelte und die Kachelinhalte für Laien erklärt.
 
+## Flackerfreie Aktualisierung
+Beide Kacheln tauschen bei Aktualisierungen nur geänderte Werte aus (DOM-Abgleich statt Neuaufbau). Diagramme werden direkt aktualisiert,
+nicht geleert; Tooltips und Fadenkreuz hängen an einem zentralen Ereignis-Handler.
+
 ## Nur lokal
 Das Modul macht zur Laufzeit keinerlei Online-Abfragen: Daten kommen ausschließlich aus dem lokalen Symcon-Archiv, die Kachel lädt keine externen Schriften, Skripte oder Bilder.
 

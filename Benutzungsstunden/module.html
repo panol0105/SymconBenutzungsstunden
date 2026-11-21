@@ -109,7 +109,7 @@
   .chart-sub { display: flex; justify-content: space-between; color: var(--ink-3); font-size: .8em; margin: .2em 0 -.3em; }
   .chart-sub b { color: var(--ink-2); font-weight: 500; }
   .chart { position: relative; }
-  .chart svg { display: block; overflow: visible; }
+  .chart svg { display: block; overflow: visible; position: absolute; left: 0; top: 0; }
   .chart .hit { cursor: pointer; }
   .chart text { fill: var(--ink-3); font-size: 11px; font-family: inherit; }
 
@@ -337,6 +337,27 @@
   }
 
   function yearRow(s, yr) { return s.years.find(r => r.year === yr); }
+
+  // Inhalt flackerfrei aktualisieren: nur geänderte Texte/Attribute/Elemente werden ausgetauscht.
+  // Elemente mit data-keep behalten ihren Inhalt (z. B. Diagramme, die separat gezeichnet werden).
+  function morph(el, html) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html;
+    patchChildren(el, tpl.content);
+  }
+  function patchChildren(a, b) {
+    const an = Array.from(a.childNodes), bn = Array.from(b.childNodes);
+    bn.forEach((y, i) => {
+      const x = an[i];
+      if (!x) { a.appendChild(y.cloneNode(true)); return; }
+      if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName) { a.replaceChild(y.cloneNode(true), x); return; }
+      if (x.nodeType !== 1) { if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue; return; }
+      Array.from(x.attributes).forEach(at => { if (!y.hasAttribute(at.name) && at.name !== 'style') x.removeAttribute(at.name); });
+      Array.from(y.attributes).forEach(at => { if (x.getAttribute(at.name) !== at.value) x.setAttribute(at.name, at.value); });
+      if (!x.hasAttribute('data-keep')) patchChildren(x, y);
+    });
+    for (let i = an.length - 1; i >= bn.length; i--) a.removeChild(an[i]);
+  }
   const hasData = y => y && !y.busy && y.energy > 0;
 
   // ---------------------------------------------------------------- Prüfungen
@@ -356,8 +377,8 @@
   // ---------------------------------------------------------------- Aufbau
   function render() {
     const yb = document.getElementById('years');
-    yb.innerHTML = state.years.slice().reverse().map(y =>
-      `<button aria-pressed="${y === selectedYear}" data-y="${y}">${y}${y === state.currentYear ? '<span class="lfd"> (lfd.)</span>' : ''}</button>`).join('');
+    morph(yb, state.years.slice().reverse().map(y =>
+      `<button aria-pressed="${y === selectedYear}" data-y="${y}">${y}${y === state.currentYear ? '<span class="lfd"> (lfd.)</span>' : ''}</button>`).join(''));
     yb.querySelectorAll('button').forEach(b => b.onclick = () => { selectedYear = +b.dataset.y; render(); });
     const act = yb.querySelector('[aria-pressed="true"]');
     if (act) yb.scrollLeft = act.offsetLeft - 8;
@@ -366,22 +387,22 @@
     const sel = state.sources.map(s => checks(yearRow(s, selectedYear)));
     const implaus = sel.filter(c => c.some(w => w[0] === 'err' || !/^Unvollständig/.test(w[1]))).length;
     const incomplete = state.sources.filter(s => { const y = yearRow(s, selectedYear); return hasData(y) && y.incomplete; }).length;
-    document.getElementById('status').innerHTML =
+    morph(document.getElementById('status'),
       (state.pending > 0 ? `<span class="pill busy">Berechnung läuft · ${state.pending} Monate offen</span> ` : '') +
       (errors ? `<span class="pill err">${errors} Messstelle${errors > 1 ? 'n' : ''} prüfen</span> ` : '') +
       (implaus ? `<span class="pill warn">Werte unplausibel</span> ` : '') +
       (!implaus && incomplete ? `<span class="pill warn">${selectedYear} unvollständig</span> ` : '') +
-      (!errors && !implaus && !incomplete && !(state.pending > 0) ? `<span class="pill">Alle Werte OK</span>` : '');
+      (!errors && !implaus && !incomplete && !(state.pending > 0) ? `<span class="pill">Alle Werte OK</span>` : ''));
     document.getElementById('stand').textContent = 'Stand ' + fmtDate(state.updated, true);
 
     const main = document.getElementById('cards');
     if (state.sources.length === 0) {
-      main.innerHTML = '<div class="empty">Keine Energiearten konfiguriert.</div>';
+      morph(main, '<div class="empty">Keine Energiearten konfiguriert.</div>');
       return;
     }
     const solo = state.sources.length === 1;
     main.classList.toggle('fill', solo);
-    main.innerHTML = (solo ? '' : overview()) + state.sources.map((s, i) => card(s, i, solo)).join('');
+    morph(main, (solo ? '' : overview()) + state.sources.map((s, i) => card(s, i, solo)).join(''));
     main.querySelectorAll('.seg button').forEach(b => b.onclick = () => { view = b.dataset.v; render(); });
     drawCharts();
     main.querySelectorAll('tbody tr[data-s]').forEach(tr => tr.onclick = () => {
@@ -490,34 +511,31 @@
   function chartBox(s, idx) {
     const seg = `<span class="seg" role="group" aria-label="Ansicht"><button data-v="years" aria-pressed="${view === 'years'}">Jahre</button><button data-v="months" aria-pressed="${view === 'months'}">Monate ${selectedYear}</button></span>`;
     if (view === 'years') {
-      return `<div class="chart-head">${seg}<span>Benutzungsstunden h/a</span></div><div class="chart" data-s="${idx}" data-k="years"></div>`;
+      return `<div class="chart-head">${seg}<span>Benutzungsstunden h/a</span></div><div class="chart" data-keep data-s="${idx}" data-k="years"></div>`;
     }
     const y = yearRow(s, selectedYear);
     let out = `<div class="chart-head">${seg}<span>Monatswerte</span></div>`;
     if (!hasData(y) || !y.months || !y.months.length) return out + `<div class="note">Keine Monatswerte für ${selectedYear}.</div>`;
     const pm = s.mode !== 2 && y.peakTime ? new Date(y.peakTime * 1000).getMonth() + 1 : 0;
-    out += `<div class="chart-sub"><span>Energie je Monat</span><b>${txt(energyParts(y.energy))}</b></div><div class="chart half" data-s="${idx}" data-k="menergy"></div>`;
+    out += `<div class="chart-sub"><span>Energie je Monat</span><b>${txt(energyParts(y.energy))}</b></div><div class="chart half" data-keep data-s="${idx}" data-k="menergy"></div>`;
     if (s.mode !== 2) {
-      out += `<div class="chart-sub"><span>Leistungsspitze je Monat${pm ? ' · Jahresspitze im ' + MON[pm - 1] : ''}</span><b>${txt(powerParts(y.peak))}</b></div><div class="chart half" data-s="${idx}" data-k="mpeak"></div>`;
+      out += `<div class="chart-sub"><span>Leistungsspitze je Monat${pm ? ' · Jahresspitze im ' + MON[pm - 1] : ''}</span><b>${txt(powerParts(y.peak))}</b></div><div class="chart half" data-keep data-s="${idx}" data-k="mpeak"></div>`;
     }
     return out;
   }
 
   function drawCharts() {
     const els = [...document.querySelectorAll('.chart[data-s]')];
-    els.forEach(el => el.innerHTML = '');           // alte Grafik darf die Höhe nicht festhalten
+    // feste Höhe für Diagramme außerhalb des Einzel-Layouts (SVG ist absolut positioniert)
+    els.forEach(el => { if (!el.closest('.solo')) el.style.height = (el.dataset.k === 'years' ? (window.innerWidth > 560 ? 120 : 100) : 96) + 'px'; });
     const sizes = els.map(el => [el.clientWidth, el.clientHeight]);
     els.forEach((el, n) => {
       const s = state.sources[+el.dataset.s];
       const kind = el.dataset.k;
-      const solo = !!el.closest('.solo');
-      let H;
-      if (solo) H = Math.max(kind === 'years' ? 110 : 80, Math.floor(sizes[n][1]));
-      else H = kind === 'years' ? (window.innerWidth > 560 ? 120 : 100) : 96;
+      const H = Math.max(kind === 'years' ? 100 : 80, Math.floor(sizes[n][1]));
       const cfg = kind === 'years' ? yearItems(s) : monthItems(s, kind);
       el._items = cfg;
-      el.innerHTML = barsSvg(cfg, Math.max(140, sizes[n][0]), H);
-      el.querySelectorAll('.hit').forEach(h => bindHit(el, h));
+      morph(el, barsSvg(cfg, Math.max(140, sizes[n][0]), H));
     });
   }
 
@@ -598,7 +616,7 @@
         const hTop = Math.max(h, it.ghost ? it.ghost / max * (base - top) : 0);
         out += `<text x="${cx}" y="${base - hTop - 4}" text-anchor="middle" style="fill:var(--ink);font-weight:600">${it.top}</text>`;
       }
-      out += `<rect class="hit" data-i="${i}" x="${cx - step / 2}" y="0" width="${step}" height="${H}" fill="transparent"/>`;
+      out += `<rect class="hit" data-i="${i}" x="${cx - step / 2}" y="0" width="${step}" height="${H}" fill="transparent" style="cursor:${it.click ? 'pointer' : 'default'}"/>`;
       out += `<text x="${cx}" y="${H - 4}" text-anchor="middle" ${it.sel ? 'style="fill:' + ACCENT + ';font-weight:600"' : ''}>${useShort ? it.short : it.label}</text>`;
     });
     return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img">${out}</svg>`;
@@ -611,20 +629,27 @@
   }
 
   const tip = document.getElementById('tip');
-  function bindHit(el, hit) {
-    const it = el._items[+hit.dataset.i];
-    hit.addEventListener('mousemove', e => {
-      tip.innerHTML = it.tip();
-      const tw = tip.offsetWidth, th = tip.offsetHeight;
-      let x = e.clientX + 12, y = e.clientY - th - 8;
-      if (x + tw > window.innerWidth - 4) x = e.clientX - tw - 12;
-      if (y < 4) y = e.clientY + 14;
-      tip.style.left = x + 'px'; tip.style.top = y + 'px'; tip.style.opacity = 1;
-    });
-    hit.addEventListener('mouseleave', () => tip.style.opacity = 0);
-    hit.style.cursor = it.click ? 'pointer' : 'default';
-    hit.addEventListener('click', () => { tip.style.opacity = 0; if (it.click) it.click(); });
+  function hitItem(e) {
+    const hit = e.target && e.target.closest ? e.target.closest('.hit') : null;
+    if (!hit) return null;
+    const el = hit.closest('.chart');
+    return el && el._items ? el._items[+hit.dataset.i] : null;
   }
+  document.addEventListener('mousemove', e => {
+    const it = hitItem(e);
+    if (!it) { if (tip.style.opacity !== '0') tip.style.opacity = 0; return; }
+    tip.innerHTML = it.tip();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = e.clientX + 12, y = e.clientY - th - 8;
+    if (x + tw > window.innerWidth - 4) x = e.clientX - tw - 12;
+    if (y < 4) y = e.clientY + 14;
+    tip.style.left = x + 'px'; tip.style.top = y + 'px'; tip.style.opacity = 1;
+  });
+  document.documentElement.addEventListener('mouseleave', () => tip.style.opacity = 0);
+  document.addEventListener('click', e => {
+    const it = hitItem(e);
+    if (it) { tip.style.opacity = 0; if (it.click) it.click(); }
+  });
 
   // Aufteilung der Spitze auf die einzelnen Zähler/Leistungen
   function openParts(s, total, ts, parts, period) {
